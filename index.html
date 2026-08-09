@@ -521,9 +521,12 @@ function buildMap(){
       class:"fx",opacity:f.zone?.35:.94,id:"fx-"+f.id});
     r.addEventListener("click",()=>pickFixture(f));
     svg.appendChild(r);
+  });
+  FX.forEach(f=>{   // labels on top of everything (G1 sits under CF1/CF2)
     const fs=f.zone?34:Math.max(20,Math.min(34,f.w/5));
-    const t=el("text",{x:f.x+f.w/2,y:f.y+f.h/2+fs*.35,"font-size":fs,"text-anchor":"middle",
-      class:"fxlbl",fill:f.zone?"#8b98a8":"#1a2330"});
+    const lx=f.id==="G1"? f.x+f.w-40 : f.x+f.w/2;
+    const t=el("text",{x:lx,y:f.y+f.h/2+fs*.35,"font-size":fs,"text-anchor":"middle",
+      class:"fxlbl",fill:f.zone?"#8b98a8":"#1a2330","pointer-events":"none"});
     t.textContent=f.id; svg.appendChild(t);
     const b=el("text",{x:f.x+f.w/2,y:f.y-7,"font-size":21,"text-anchor":"middle",class:"fxbadge",id:"cnt-"+f.id});
     svg.appendChild(b);
