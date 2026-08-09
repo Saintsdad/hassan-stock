@@ -375,6 +375,7 @@ main{flex:1;overflow:hidden;position:relative}
     </div>
     <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
   </div>
+  <input type="file" id="noteInput" accept="image/*" capture="environment" hidden>
 
   <!-- MAP -->
   <div class="view" id="mapView">
@@ -406,7 +407,14 @@ main{flex:1;overflow:hidden;position:relative}
         Then scan every box/item as you unpack: the app ticks them off, flags shorts, overs and
         extras (bonuses/promo), and remembers which barcode belongs to which item for next time.</div>
       <input id="delivName" placeholder="Delivery name (e.g. Booker Tue)" style="width:100%;margin-bottom:8px">
-      <textarea id="delivPaste" placeholder="12 x Coca-Cola 330ml
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="setBtn" style="justify-content:center;background:rgba(74,127,212,.2);border-color:#33507e;color:#9db8e8"
+          onclick="scanNote()">📷 Scan the paper note (OCR)</button>
+      </div>
+      <div id="ocrState" class="muted" style="display:none;margin-bottom:8px"></div>
+      <div id="notePics" style="display:none;gap:8px;overflow-x:auto;margin-bottom:8px"></div>
+      <textarea id="delivPaste" placeholder="…or paste/type the list:
+12 x Coca-Cola 330ml
 24 x Walkers Ready Salted
 6 x Red Bull 250ml" style="width:100%;height:130px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px;font-size:14px;font-family:inherit"></textarea>
       <button class="setBtn" style="margin-top:8px;justify-content:center;background:var(--acc);color:#04211d" onclick="startDelivery()">Start checking ▶</button>
@@ -419,6 +427,7 @@ main{flex:1;overflow:hidden;position:relative}
         </div>
         <div class="muted" style="margin-top:4px">Scan on the <b>Scan</b> tab — while a delivery is open,
           every scan counts here (not into shelf stock). Tap a line to +1 by hand.</div>
+        <div id="delivNoteStrip" style="display:none;gap:8px;overflow-x:auto;margin-top:8px"></div>
       </div>
       <div id="delivLines" style="display:flex;flex-direction:column;gap:7px"></div>
       <div class="card" id="delivExtrasCard" style="display:none">
@@ -427,7 +436,8 @@ main{flex:1;overflow:hidden;position:relative}
       </div>
       <div style="display:flex;gap:8px">
         <button class="setBtn" style="justify-content:center" onclick="finishDelivery()">Finish → report</button>
-        <button class="setBtn danger" style="justify-content:center;max-width:40%" onclick="cancelDelivery()">Cancel</button>
+        <button class="setBtn" style="justify-content:center;max-width:32%" onclick="delivExport()">⇩ JSON</button>
+        <button class="setBtn danger" style="justify-content:center;max-width:28%" onclick="cancelDelivery()">Cancel</button>
       </div>
     </div>
   </div>
@@ -1133,6 +1143,103 @@ async function delEntry(id){
 
 /* ============ DELIVERY CHECK ============ */
 let deliv=null, delivLinks={};   // delivLinks: barcode -> canonical line desc (learned across deliveries)
+/* ---- paper note OCR ---- */
+let notePhotos=[];
+function scanNote(){
+  $("noteInput").onchange=async e=>{
+    const f=e.target.files[0]; e.target.value=""; if(!f) return;
+    const os=$("ocrState"); os.style.display="block";
+    os.textContent="Preparing photo…";
+    const img=await noteImage(f);          // {dataUrl (stored), canvas (ocr-optimised)}
+    notePhotos.push(img.dataUrl); renderNotePics();
+    os.textContent="Loading OCR engine (first time only)…";
+    let worker;
+    try{ worker=await getOcr(); }
+    catch(err){ os.textContent="⚠ OCR engine couldn't load (offline?). The photo IS saved with the delivery — type the lines, or export the JSON and let Claude read the note."; logErr("ocr load: "+err.message); return; }
+    try{
+      os.textContent="Reading the note… 0%";
+      const res=await worker.recognize(img.canvas);
+      const lines=parseOcrText(res.data.text);
+      if(lines.length){
+        const ta=$("delivPaste");
+        ta.value=(ta.value.trim()? ta.value.trim()+"\n":"")+lines.join("\n");
+        os.textContent=`✓ pulled ${lines.length} lines — CHECK & FIX them below, then Start. Photo saved with the delivery.`;
+        buzz([20,30,20]);
+      } else os.textContent="Couldn't read item lines — photo saved; type the list or add another (closer) photo.";
+    }catch(err){ os.textContent="⚠ OCR failed on this photo — it's saved though; try a straighter/closer shot or type the lines."; logErr("ocr: "+err.message); }
+  };
+  $("noteInput").click();
+}
+function renderNotePics(){
+  const el=$("notePics");
+  el.style.display=notePhotos.length?"flex":"none";
+  el.innerHTML=notePhotos.map((p,i)=>`<div class="mThumb"><img src="${p}" onclick="viewPhotoSrc(this.src)">
+    <span class="del" onclick="notePhotos.splice(${i},1);renderNotePics()">✕</span></div>`).join("");
+}
+function noteImage(file){ return new Promise(res=>{
+  const img=new Image(); img.onload=()=>{
+    // stored copy (compact)
+    const sc=Math.min(1,1300/Math.max(img.width,img.height));
+    const c1=document.createElement("canvas");
+    c1.width=img.width*sc; c1.height=img.height*sc;
+    c1.getContext("2d").drawImage(img,0,0,c1.width,c1.height);
+    // OCR copy: bigger + grayscale + contrast stretch
+    const so=Math.min(1,2000/Math.max(img.width,img.height));
+    const c2=document.createElement("canvas");
+    c2.width=img.width*so; c2.height=img.height*so;
+    const ctx=c2.getContext("2d");
+    ctx.drawImage(img,0,0,c2.width,c2.height);
+    const d=ctx.getImageData(0,0,c2.width,c2.height), px=d.data;
+    let mn=255,mx=0;
+    for(let i=0;i<px.length;i+=4){ const g=px[i]*.3+px[i+1]*.59+px[i+2]*.11;
+      if(g<mn)mn=g; if(g>mx)mx=g; }
+    const rg=Math.max(1,mx-mn);
+    for(let i=0;i<px.length;i+=4){ const g=px[i]*.3+px[i+1]*.59+px[i+2]*.11;
+      const v=Math.max(0,Math.min(255,(g-mn)*255/rg));
+      px[i]=px[i+1]=px[i+2]=v; }
+    ctx.putImageData(d,0,0);
+    res({dataUrl:c1.toDataURL("image/jpeg",.7), canvas:c2});
+  }; img.src=URL.createObjectURL(file); }); }
+let ocrWorker=null;
+async function getOcr(){
+  if(ocrWorker) return ocrWorker;
+  if(!window.Tesseract){
+    await new Promise((res,rej)=>{ const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      s.onload=res; s.onerror=()=>rej(new Error("cdn blocked")); document.head.appendChild(s);
+      setTimeout(()=>rej(new Error("cdn timeout")),20000); });
+  }
+  ocrWorker=await Tesseract.createWorker("eng",1,{logger:m=>{
+    if(m.status==="recognizing text") $("ocrState").textContent="Reading the note… "+Math.round(m.progress*100)+"%";
+  }});
+  return ocrWorker;
+}
+const OCR_SKIP=/invoice|delivery note|total|subtotal|vat|page|date|account|customer|order no|tel|www\.|@|thank|balance|due|sign|driver|goods received|£?\s*\d+[.,]\d{2}\s*$/i;
+function parseOcrText(text){
+  const out=[];
+  for(let raw of text.split("\n")){
+    let s=raw.replace(/[|_~=]+/g," ").replace(/\s{2,}/g," ").trim();
+    if(s.length<4) continue;
+    if(OCR_SKIP.test(s) && !/^\d+\s/.test(s)) continue;
+    // strip trailing price/amount columns: "... 4.99 59.88" / "£4.99"
+    s=s.replace(/(\s+£?\d+[.,]\d{2}){1,3}\s*$/,"").trim();
+    // strip long leading product codes: "123456 12 x Coke" → keep qty part
+    s=s.replace(/^\d{5,}\s+/,"").trim();
+    if(s.length<4) continue;
+    const letters=(s.match(/[a-zA-Z]/g)||[]).length;
+    if(letters<3) continue;
+    out.push(s);
+  }
+  return out;
+}
+async function delivExport(){
+  const data={v:1,kind:"hassan-delivery",name:deliv.name,started:deliv.started,
+    lines:deliv.lines,extras:deliv.extras,notePhotos:deliv.notePhotos||[],
+    note:"Delivery check export — notePhotos are the paper delivery note; Claude can OCR/verify."};
+  dl(`delivery-${(deliv.name||"x").replace(/[^a-z0-9]+/gi,"-")}.json`,
+    new Blob([JSON.stringify(data)],{type:"application/json"}));
+  toast("Delivery JSON exported");
+}
 function parseDelivLine(s){
   s=s.trim(); if(!s) return null;
   let m=s.match(/^(\d+)\s*[x×*]?\s+(.+)$/i);
@@ -1145,7 +1252,8 @@ async function startDelivery(){
   const lines=$("delivPaste").value.split("\n").map(parseDelivLine).filter(Boolean);
   if(!lines.length){ toast("Paste the delivery list first",1); return; }
   deliv={active:1, name:$("delivName").value.trim()||("Delivery "+new Date().toLocaleDateString("en-GB")),
-    started:Date.now(), lines, extras:{}, links:{}};
+    started:Date.now(), lines, extras:{}, links:{}, notePhotos:notePhotos.slice()};
+  notePhotos=[]; renderNotePics();
   await kvSet("deliv",deliv);
   buzz(20); toast("Delivery mode ON — go scan boxes");
   renderDelivery(); go("scan");
@@ -1208,6 +1316,9 @@ async function renderDelivery(){
   $("delivBanner").classList.toggle("show",!!live);
   if(!live) return;
   $("delivTitle").textContent=deliv.name;
+  const ns=$("delivNoteStrip"), nps=deliv.notePhotos||[];
+  ns.style.display=nps.length?"flex":"none";
+  ns.innerHTML=nps.map(p=>`<img src="${p}" style="height:64px;border-radius:8px;border:1px solid var(--line)" onclick="viewPhotoSrc(this.src)">`).join("");
   const done=deliv.lines.filter(l=>l.got>=l.exp).length;
   const gotT=deliv.lines.reduce((a,b)=>a+b.got,0), expT=deliv.lines.reduce((a,b)=>a+b.exp,0);
   $("delivStats").textContent=`${done}/${deliv.lines.length} lines · ${gotT}/${expT} pcs`;
@@ -1275,7 +1386,8 @@ async function buildPayload(){
   return {v:3, schema:"hassan-stock/3", rev:"AQ", exported:new Date().toISOString(),
     user:syncCfg.user||"anon",
     products:await idbAll("products"), entries:await idbAll("entries"),
-    media:await idbAll("media"), ovSecs, ovLvls};
+    media:await idbAll("media"), ovSecs, ovLvls,
+    delivery:(deliv&&deliv.active)?deliv:null};
 }
 async function syncCall(body){
   const r=await fetch(syncCfg.url,{method:"POST",
