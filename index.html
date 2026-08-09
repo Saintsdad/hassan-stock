@@ -1870,8 +1870,13 @@ async function dedupeAI(){
   for(const k in groups){
     const g=groups[k];
     if(g.length<2) continue;
-    g.sort((a,b)=>b.qty-a.qty);
-    for(let i=1;i<g.length;i++){ doomed.push(g[i]); del++; pcs+=g[i].qty; }
+    // prefer shelf-placed (.L) lines over whole-section, then bigger qty, then newer
+    g.sort((a,b)=>(/\.L\d+$/.test(b.loc)-/\.L\d+$/.test(a.loc))||(b.qty-a.qty)||(b.ts-a.ts));
+    const keepPlaced=/\.L\d+$/.test(g[0].loc);
+    for(let i=1;i<g.length;i++){
+      if(keepPlaced && /\.L\d+$/.test(g[i].loc)) continue;   // different shelves of same product co-exist
+      doomed.push(g[i]); del++; pcs+=g[i].qty;
+    }
   }
   // pass 2: barcode scans SUPERSEDE matching AI lines in the same section (scan = truth)
   const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9 ]+/g," ")
@@ -2021,7 +2026,21 @@ async function importJSON(file){
     }
     if(data.ovSecs){ ovSecs={...ovSecs,...data.ovSecs}; await kvSet("ovSecs",ovSecs); }
     if(data.ovLvls){ ovLvls={...ovLvls,...data.ovLvls}; await kvSet("ovLvls",ovLvls); }
-    toast(`✓ Imported: +${np} products, +${ne} lines${nm?", +"+nm+" media":""}${skip?" ("+skip+" dupes skipped)":""}`);
+    // ---- fix-pack support: {fix:{remove:[guids], moves:[{g,loc}], renames:{barcode:{name,brand,size}}}} ----
+    let fr=0,fm=0,fn=0;
+    if(data.fix){
+      const all=await idbAll("entries");
+      const byG={}; all.forEach(e=>{ if(e.guid) byG[e.guid]=e; });
+      for(const g of data.fix.remove||[]){ const e=byG[g]; if(e){ await idbDel("entries",e.id); fr++; } }
+      for(const mv of data.fix.moves||[]){ const e=byG[mv.g];
+        if(e && mv.loc){ e.loc=mv.loc; e.fx=mv.loc.split(".")[0]; await idbPut("entries",e); fm++; } }
+      for(const b in (data.fix.renames||{})){
+        const p=await idbGet("products",b); const r=data.fix.renames[b];
+        if(p){ if(r.name)p.name=r.name; if(r.brand!==undefined)p.brand=r.brand;
+          if(r.size!==undefined)p.size=r.size; p.pend=0; await idbPut("products",p); fn++; } }
+    }
+    toast(`✓ Imported: +${np} products, +${ne} lines${nm?", +"+nm+" media":""}`+
+      `${fr?" · −"+fr+" removed":""}${fm?" · "+fm+" moved":""}${fn?" · "+fn+" renamed":""}${skip?" ("+skip+" dupes skipped)":""}`);
     renderStock(); refreshMapCounts(); renderSecCap(); queueAutoSync();
   }catch(e){ toast("Import FAILED: "+String(e.message).slice(0,60),1); logErr("import: "+e.message); }
 }
