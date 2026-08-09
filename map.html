@@ -87,7 +87,7 @@ async function load(force){
   if(!pin||force===2){ pin=prompt("Sync PIN:")||""; localStorage.setItem("hsPin",pin); }
   try{
     const r=await fetch(URLX,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify({pin,action:"pull"})});
+      body:JSON.stringify({pin,action:"pull",media:1})});
     const j=await r.json();
     if(!j.ok){ st.textContent="⚠ "+(j.err||"failed")+(j.err==="wrong PIN"?" — tap Refresh to re-enter":""); 
       if(j.err==="wrong PIN") localStorage.removeItem("hsPin"); return; }

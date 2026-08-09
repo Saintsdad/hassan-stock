@@ -272,6 +272,13 @@ main{flex:1;overflow:hidden;position:relative}
 #evZoom{position:fixed;inset:0;background:#000e;z-index:99;display:none;align-items:center;justify-content:center}
 #evZoom.show{display:flex}
 #evZoom img{max-width:97vw;max-height:97vh;border-radius:10px}
+#pkOv{position:fixed;inset:0;background:#000c;z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+#pkOv.show{display:flex}
+.pkCard{background:#10314f;border:1px solid #cfe4ff33;border-radius:16px;padding:16px;max-width:420px;width:100%;max-height:86vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center}
+.pkCard img{max-height:150px;max-width:70%;border-radius:10px;background:#fff;padding:6px}
+.pkN{font-weight:900;font-size:17px}
+.pkM{color:#7fd6c8;font-size:13px}
+.pkI{font-size:12px;color:#9fb3cd;line-height:1.45}
 .evq{position:absolute;top:-6px;right:2px;background:#7fd6c8;color:#06251f;font-weight:800;font-size:10px;
   padding:1px 5px;border-radius:999px}
 .evn{font-size:8px;color:#cfe4ff;text-align:center;line-height:1.2;margin-top:4px;height:20px;overflow:hidden;opacity:.85}
@@ -519,6 +526,12 @@ main{flex:1;overflow:hidden;position:relative}
         categories, Nutri-Score. Only fills what's missing — never overwrites names you've set.
         Takes a few minutes for a big backlog; safe to leave running.</div>
       <button class="setBtn" style="justify-content:center" id="imgFetchBtn" onclick="offEnrich()">🧠 Fetch product info</button>
+      <div class="muted" style="margin-top:8px;font-size:11.5px">AI-read items (no barcode) get matched
+        by NAME against the database in the background — distinctive names like "Cirio Chopped
+        Tomatoes" find their real product, picture and ingredients; vague ones ("Assorted Biscuits")
+        wait until you barcode-scan one. Runs slowly (database limit), continues every time you open
+        the app.</div>
+      <div class="muted" id="aiEnrStat" style="margin-top:5px;font-size:11.5px;color:var(--acc)"></div>
     </div>
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:6px">🧹 Clean-up</h3>
@@ -1577,8 +1590,14 @@ async function syncPush(quiet){
     if(!res.ok){ syncStatus("error"); toast("Sync: "+(res.err||"failed"),1); logErr("sync push: "+res.err); syncing=false; return; }
     await kvSet("lastSync",Date.now());
     // 2) media in chunks (needs sync script v2; falls back gracefully)
+    // only when something NEW since the last successful media push — photos are heavy
     const media=await idbAll("media");
-    if(media.length){
+    const pushedKeys=new Set((await kvGet("mediaPushed"))||[]);
+    const hasNew=media.some(m=>m.guid&&!pushedKeys.has(m.guid+"|"+m.loc));
+    if(media.length && !hasNew){
+      syncStatus("saved "+new Date().toLocaleTimeString().slice(0,5));
+      if(!quiet) toast("☁ saved — photos already in cloud");
+    } else if(media.length){
       const chunks=chunkMedia(media, 3_000_000);
       let sent=0, mediaOk=true;
       for(let i=0;i<chunks.length;i++){
@@ -1596,6 +1615,7 @@ async function syncPush(quiet){
           sent+=chunks[i].length;
         }catch(e){ logErr("sync media part "+(i+1)+": "+e.message); mediaOk=false; break; }
       }
+      if(mediaOk) await kvSet("mediaPushed", media.map(m=>m.guid+"|"+m.loc));
       syncStatus("saved "+new Date().toLocaleTimeString().slice(0,5));
       if(!quiet) toast(mediaOk? `☁ saved — data + ${sent} photos/notes` : `☁ data saved (photos: ${sent}/${media.length})`, !mediaOk);
     } else {
@@ -1617,11 +1637,13 @@ async function syncTest(){
   syncStatus("testing…");
   const t0=Date.now();
   try{
-    const res=await syncCall({pin:syncCfg.pin,action:"pull"},20000);
+    // light test: GET ping (no photo download — pulls got heavy once photos reached the cloud)
+    const r=await fetch(syncCfg.url,{signal:AbortSignal.timeout(20000)});
+    const res=await r.json();
     const ms=Date.now()-t0;
     if(res.ok){ syncStatus("test OK · "+ms+"ms");
-      toast(`✓ Connection OK (${ms}ms) — cloud has ${res.data? (res.data.entries||[]).length+" lines":"no data yet"}`); }
-    else { syncStatus("test: "+res.err); toast("Server says: "+res.err,1); }
+      toast(`✓ Connection OK (${ms}ms) — server ${res.v?"v"+res.v+" (photos on)":"v1 (data only)"}`); }
+    else { syncStatus("test: odd reply"); toast("Server replied oddly — check the URL",1); }
   }catch(e){ syncStatus("test failed");
     toast("✗ "+(e.name==="TimeoutError"?"timed out":String(e.message).slice(0,70)),1);
     logErr("sync test: "+e.message); }
@@ -1634,9 +1656,9 @@ function queueAutoSync(){
 async function syncPull(){
   saveSyncCfg();
   if(!syncCfg.url||!syncCfg.pin){ toast("Set sync URL + PIN first",1); return; }
-  syncStatus("pulling…");
+  syncStatus("pulling (incl photos — can take a minute)…");
   try{
-    const res=await syncCall({pin:syncCfg.pin,action:"pull"});
+    const res=await syncCall({pin:syncCfg.pin,action:"pull",media:1},180000);
     if(!res.ok || !res.data){ toast(res.err||"Nothing in cloud yet",1); syncStatus(""); return; }
     const d=res.data; let np=0,ne=0,nm=0;
     const myP={}; (await idbAll("products")).forEach(p=>myP[p.barcode]=p);
@@ -1666,7 +1688,9 @@ async function syncPull(){
 }
 
 /* ============ ELEVATION VIEW (blueprint, in-app) ============ */
+let lastElevBase="";
 async function openElev(base){
+  lastElevBase=base;
   const f=fxById(base.split(".")[0]); if(!f) return;
   const parts=base.split("."); const face=(parts.length===3||parts[1]==="CAP")?parts[1]:"";
   const sec= parts[1]==="CAP"?1:+parts[parts.length-1];
@@ -1684,7 +1708,7 @@ async function openElev(base){
       const p=prods[e.barcode]||{};
       const img=p.img||(e.photos&&e.photos[0]);
       const pic= img? `<img src="${img}">` : `<div class="evsil"></div>`;
-      return `<div class="evit">${pic}<span class="evq">×${e.qty}</span><div class="evn">${esc((p.name||e.barcode).slice(0,26))}</div></div>`;
+      return `<div class="evit" onclick="prodPeek('${String(e.barcode).replace(/[^\w-]/g,"")}')">${pic}<span class="evq">×${e.qty}</span><div class="evn">${esc((p.name||e.barcode).slice(0,26))}</div></div>`;
     }).join("");
     const pcs=(rows[l]||[]).reduce((a,b)=>a+b.qty,0);
     shelves+=`<div class="evsh"><div class="evaddr">${base}.L${l}<span>${pcs?pcs+" pcs":"—"}</span></div>
@@ -1708,11 +1732,15 @@ function evZoom(src){
     z.onclick=()=>z.classList.remove("show"); document.body.appendChild(z); }
   z.querySelector("img").src=src; z.classList.add("show");
 }
-async function offEnrich(){
+let offBusy=false;
+async function offEnrich(auto){
+  if(offBusy){ if(!auto) toast("Already fetching — running in background"); return; }
   const btn=$("imgFetchBtn");
   const all=(await idbAll("products")).filter(p=>/^\d{6,}$/.test(String(p.barcode))
     &&(!p.img||!p.name||!p.ing||!p.cat)&&!p.offMiss);
-  if(!all.length){ toast("Everything already has its info 🧠"); return; }
+  if(!all.length){ if(!auto) toast("Everything already has its info 🧠"); return; }
+  offBusy=true;
+  if(auto) toast(`🧠 fetching product info for ${all.length} barcodes in background…`);
   btn.disabled=true; let got=0,done=0;
   for(const p of all){
     done++; btn.textContent=`🧠 ${done}/${all.length}… (found ${got})`;
@@ -1729,9 +1757,67 @@ async function offEnrich(){
     }catch(e){}
     await new Promise(res=>setTimeout(res,650));
   }
+  offBusy=false;
   btn.disabled=false; btn.textContent="🧠 Fetch product info";
-  toast(`🧠 enriched ${got} of ${all.length} products (rest not on the database)`);
+  toast(`🧠 got info + pictures for ${got} of ${all.length} products (rest not on the database)`);
   queueAutoSync(); renderStock();
+  if(got && $("elevView").classList.contains("show") && lastElevBase) openElev(lastElevBase);
+}
+let aiEnrBusy=false;
+function normTok(s){ return String(s).toLowerCase().replace(/\(.*?\)/g," ").replace(/[^a-z0-9 ]/g," ")
+  .split(/\s+/).filter(w=>w.length>2&&!["the","and","with","pack","cans","can","bottle","bottles",
+  "jars","jar","bag","bags","box","large","small","medium","assorted","generic","flavour","flavor",
+  "drink","drinks","pcs","tub","tubs","packet","packets"].includes(w)); }
+async function aiEnrich(){
+  if(aiEnrBusy) return; aiEnrBusy=true;
+  const el=$("aiEnrStat");
+  try{
+    const cand=(await idbAll("products")).filter(p=>/^(AI|NB)-/.test(String(p.barcode))
+      &&p.name&&!p.ean&&!p.aiMiss&&normTok((p.brand?p.brand+" ":"")+p.name).length>=3);
+    if(!cand.length){ if(el) el.textContent=""; return; }
+    let done=0,hits=0;
+    for(const p of cand){
+      if(done>=60) break; // per-session cap — continues next app open
+      done++;
+      if(el) el.textContent=`AI-item matching: ${done}/${Math.min(cand.length,60)} this run · ${hits} matched · ${cand.length} queued`;
+      try{
+        const q=encodeURIComponent(((p.brand?p.brand+" ":"")+p.name).slice(0,80));
+        const r=await fetch("https://world.openfoodfacts.org/cgi/search.pl?search_terms="+q
+          +"&search_simple=1&action=process&json=1&page_size=3&fields=code,product_name,brands,quantity,image_front_small_url,image_front_url,ingredients_text,categories_tags,allergens_tags,nutriscore_grade",
+          {signal:AbortSignal.timeout(12000)});
+        if(r.ok){
+          const j=await r.json();
+          const mine=new Set(normTok((p.brand?p.brand+" ":"")+p.name));
+          const score=h=>{ const t=normTok((h.product_name||"")+" "+(h.brands||"")); let s=0;
+            t.forEach(w=>{ if(mine.has(w)) s++; }); return s/Math.max(2,mine.size); };
+          const best=(j.products||[]).filter(h=>h.product_name&&h.code)
+            .sort((a,b)=>score(b)-score(a))[0];
+          if(best && score(best)>=0.6){
+            p.ean=best.code; offMerge(p,best,true); hits++; await idbPut("products",p);
+          } else { p.aiMiss=Date.now(); await idbPut("products",p); }
+        }
+      }catch(e){}
+      await new Promise(res=>setTimeout(res,7000)); // OFF search limit ~10/min
+    }
+    if(el) el.textContent=`AI-item matching: ${hits} matched this run · ${Math.max(0,cand.length-done)} still queued (continues next open)`;
+    if(hits){ queueAutoSync(); renderStock(); }
+  }finally{ aiEnrBusy=false; }
+}
+async function prodPeek(code){
+  const p=(await idbGet("products",code))||{barcode:code};
+  let o=document.getElementById("pkOv");
+  if(!o){ o=document.createElement("div"); o.id="pkOv";
+    o.onclick=e=>{ if(e.target===o) o.classList.remove("show"); };
+    document.body.appendChild(o); }
+  o.innerHTML=`<div class="pkCard">${p.img?`<img src="${p.img}">`:""}
+    <div class="pkN">${esc(p.name||String(code))}</div>
+    <div class="pkM">${esc([p.brand,p.size].filter(Boolean).join(" · "))}</div>
+    ${p.cat?`<div class="pkI">${esc(p.cat)}</div>`:""}
+    ${p.alg?`<div class="pkI" style="color:#ffb28a">⚠ contains: ${esc(p.alg)}</div>`:""}
+    ${p.nsc?`<div class="pkI">Nutri-Score ${esc(p.nsc)}</div>`:""}
+    ${p.ing?`<div class="pkI" style="max-height:30vh;overflow-y:auto">${esc(p.ing)}</div>`:""}
+    <div class="pkI" style="opacity:.55">${esc(String(code))}</div></div>`;
+  o.classList.add("show");
 }
 function elevFromStock(){ const v=$("stockFilter").value; if(!v){ toast("Pick a location filter first",1); return; }
   openElev(v.replace(/\.L\d+$/,"")); }
@@ -2110,7 +2196,9 @@ async function importJSON(file){
       for(const b in (data.fix.renames||{})){
         const p=await idbGet("products",b); const r=data.fix.renames[b];
         if(p){ if(r.name)p.name=r.name; if(r.brand!==undefined)p.brand=r.brand;
-          if(r.size!==undefined)p.size=r.size; p.pend=0; await idbPut("products",p); fn++; } }
+          if(r.size!==undefined)p.size=r.size;
+          for(const k of ["img","ing","cat","alg","nsc","ean"]) if(r[k]!==undefined) p[k]=r[k];
+          p.pend=0; await idbPut("products",p); fn++; } }
     }
     toast(`✓ Imported: +${np} products, +${ne} lines${nm?", +"+nm+" media":""}`+
       `${fr?" · −"+fr+" removed":""}${fm?" · "+fm+" moved":""}${fn?" · "+fn+" renamed":""}${skip?" ("+skip+" dupes skipped)":""}`);
@@ -2147,6 +2235,7 @@ async function wipeAll(){
   $("manualCode").addEventListener("keydown",e=>{ if(e.key==="Enter") manualGo(); });
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
     $("fileWarn").style.display="block";
+  setTimeout(async()=>{ if(navigator.onLine){ await offEnrich(true); aiEnrich(); } },5000);
 })();
 </script>
 </body>
