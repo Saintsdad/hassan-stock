@@ -315,6 +315,9 @@ main{flex:1;overflow:hidden;position:relative}
           <input id="nameEdit" placeholder="Product name">
           <input id="sizeEdit" placeholder="Size" style="max-width:90px">
         </div>
+        <button id="fbBtn" style="display:none;width:100%;margin-top:8px;padding:13px;border-radius:12px;
+          background:rgba(224,165,63,.15);border:1.5px solid var(--warn);color:#f0c986;font-weight:800;font-size:14.5px"
+          onclick="fallbackPhoto()">📷 Skip typing — photo the front &amp; carry on (AI names it later)</button>
         <div id="qtyRow">
           <button class="qbtn" onclick="bumpQty(-1)">−</button>
           <div id="qtyVal">1</div>
@@ -774,6 +777,33 @@ function finishNB(){
   $("nameEditRow").classList.add("show");
   toast("📷 no-barcode item ready — set qty & save");
 }
+/* fallback for scanned-but-unidentified barcodes: photo = identity, no typing */
+async function fallbackPhoto(){
+  if(!current) return;
+  const attach=async d=>{
+    photos.push(d);
+    current.product.img=current.product.img||d;
+    current.product.pend=1;                 // flag: needs AI naming
+    await idbPut("products",current.product);
+    renderPhotos();
+    $("fbBtn").style.display="none";
+    $("nameEditRow").classList.remove("show");
+    $("prodMeta").textContent="Photo attached — AI will name it from the export.";
+    buzz([25,30,25]); toast("📷 attached — set qty & Save");
+  };
+  const v=$("cam");
+  if(stream && v.readyState>=2 && !paused){
+    const c=document.createElement("canvas");
+    const s=Math.min(1,900/v.videoWidth);
+    c.width=v.videoWidth*s; c.height=v.videoHeight*s;
+    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+    attach(c.toDataURL("image/jpeg",.72));
+  } else {
+    $("photoInput").onchange=async e=>{ const f=e.target.files[0];
+      if(f) attach(await shrink(f,900)); e.target.value=""; };
+    $("photoInput").click();
+  }
+}
 
 /* ============ SECTION CAPTURE (photo + voice) ============ */
 function sectionBase(){ if(!loc) return null; return mkCode(loc.fx,loc.face,loc.sec,0); }
@@ -915,6 +945,7 @@ function showCard(){
   $("prodImg").src = p.img || "data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="74" height="74"><rect width="74" height="74" rx="10" fill="#1f2630"/><text x="37" y="44" font-size="26" text-anchor="middle" fill="#4a5563">?</text></svg>');
   const edit=!p.name;
   $("nameEditRow").classList.toggle("show",edit);
+  $("fbBtn").style.display = (edit && !p.img) ? "block" : "none";
   $("nameEdit").value=p.name||""; $("sizeEdit").value=p.size||"";
   $("qtyVal").textContent=qty;
   $("saveBtn").disabled=!loc;
