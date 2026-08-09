@@ -466,6 +466,7 @@ main{flex:1;overflow:hidden;position:relative}
         aistudio.google.com/apikey (guide in chat).</div>
       <input id="aiKey" placeholder="Gemini API key (AIza…)" style="width:100%;margin-bottom:7px" onchange="saveAiCfg()">
       <input id="aiModel" placeholder="Model" value="gemini-2.5-flash" style="width:100%" onchange="saveAiCfg()">
+      <div id="aiAudit" style="margin-top:10px"></div>
     </div>
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:6px">Cloud sync <span id="syncState" class="muted" style="font-weight:400"></span></h3>
@@ -480,8 +481,9 @@ main{flex:1;overflow:hidden;position:relative}
         <input type="checkbox" id="syncAuto" style="width:auto" onchange="saveSyncCfg()"> Auto-save to cloud after every change
       </label>
       <div style="display:flex;gap:8px">
+        <button class="setBtn" style="justify-content:center" onclick="syncTest()">🩺 Test</button>
         <button class="setBtn" style="justify-content:center" onclick="syncPush()">⬆ Push now</button>
-        <button class="setBtn" style="justify-content:center" onclick="syncPull()">⬇ Pull / merge</button>
+        <button class="setBtn" style="justify-content:center" onclick="syncPull()">⬇ Pull</button>
       </div>
     </div>
     <div class="card">
@@ -1469,32 +1471,92 @@ async function ensureGuids(){
     for(const r of all) if(!r.guid){ r.guid=uuid(); await idbPut(st,r); }
   }
 }
-async function buildPayload(){
+async function buildPayload(withMedia){
   await ensureGuids();
-  return {v:3, schema:"hassan-stock/3", rev:"AQ", exported:new Date().toISOString(),
+  const p={v:3, schema:"hassan-stock/3", rev:"AQ", exported:new Date().toISOString(),
     user:syncCfg.user||"anon",
     products:await idbAll("products"), entries:await idbAll("entries"),
-    media:await idbAll("media"), ovSecs, ovLvls,
-    delivery:(deliv&&deliv.active)?deliv:null};
+    ovSecs, ovLvls, delivery:(deliv&&deliv.active)?deliv:null};
+  if(withMedia) p.media=await idbAll("media");
+  return p;
 }
-async function syncCall(body){
+async function syncCall(body,timeoutMs){
   const r=await fetch(syncCfg.url,{method:"POST",
     headers:{"Content-Type":"text/plain;charset=utf-8"},   // no preflight
-    body:JSON.stringify(body), signal:AbortSignal.timeout(60000)});
-  return r.json();
+    body:JSON.stringify(body), signal:AbortSignal.timeout(timeoutMs||60000)});
+  const t=await r.text();
+  try{ return JSON.parse(t); }
+  catch(e){ throw new Error("HTTP "+r.status+" non-JSON: "+t.slice(0,80)); }
+}
+function chunkMedia(media,maxBytes){
+  const chunks=[]; let cur=[],sz=0;
+  for(const m of media){
+    const s=(m.data||"").length+200;
+    if(cur.length && sz+s>maxBytes){ chunks.push(cur); cur=[]; sz=0; }
+    cur.push(m); sz+=s;
+  }
+  if(cur.length) chunks.push(cur);
+  return chunks;
 }
 async function syncPush(quiet){
   saveSyncCfg();
   if(!syncCfg.url||!syncCfg.pin){ if(!quiet) toast("Set sync URL + PIN first",1); return; }
-  if(syncing) return; syncing=true; syncStatus("pushing…");
+  if(syncing) return; syncing=true;
   try{
-    const res=await syncCall({pin:syncCfg.pin,user:syncCfg.user,action:"push",data:await buildPayload()});
-    if(res.ok){ await kvSet("lastSync",Date.now()); syncStatus("saved "+new Date().toLocaleTimeString().slice(0,5));
-      if(!quiet) toast("☁ saved to cloud"); }
-    else { syncStatus("error"); toast("Sync: "+(res.err||"failed"),1); logErr("sync push: "+res.err); }
-  }catch(e){ syncStatus("offline"); if(!quiet) toast("Sync failed — will retry",1); logErr("sync push: "+e.message);
-    clearTimeout(syncTimer); syncTimer=setTimeout(()=>syncPush(true),120000); }
+    // 1) main data — small & fast, always goes first
+    syncStatus("pushing data…");
+    const res=await syncCall({pin:syncCfg.pin,user:syncCfg.user,action:"push",data:await buildPayload(false)},120000);
+    if(!res.ok){ syncStatus("error"); toast("Sync: "+(res.err||"failed"),1); logErr("sync push: "+res.err); syncing=false; return; }
+    await kvSet("lastSync",Date.now());
+    // 2) media in chunks (needs sync script v2; falls back gracefully)
+    const media=await idbAll("media");
+    if(media.length){
+      const chunks=chunkMedia(media, 3_000_000);
+      let sent=0, mediaOk=true;
+      for(let i=0;i<chunks.length;i++){
+        syncStatus(`photos ${i+1}/${chunks.length}…`);
+        try{
+          const mr=await syncCall({pin:syncCfg.pin,user:syncCfg.user,action:"push_media",
+            part:i+1, of:chunks.length, media:chunks[i]}, 180000);
+          if(!mr.ok){
+            if((mr.err||"").includes("unknown action")){
+              toast("☁ data saved — update the sync script (chat guide) to back up photos too",1);
+              logErr("sync: server v1 — media skipped"); mediaOk=false; break;
+            }
+            logErr("sync media: "+mr.err); mediaOk=false; break;
+          }
+          sent+=chunks[i].length;
+        }catch(e){ logErr("sync media part "+(i+1)+": "+e.message); mediaOk=false; break; }
+      }
+      syncStatus("saved "+new Date().toLocaleTimeString().slice(0,5));
+      if(!quiet) toast(mediaOk? `☁ saved — data + ${sent} photos/notes` : `☁ data saved (photos: ${sent}/${media.length})`, !mediaOk);
+    } else {
+      syncStatus("saved "+new Date().toLocaleTimeString().slice(0,5));
+      if(!quiet) toast("☁ saved to cloud");
+    }
+  }catch(e){
+    syncStatus("offline");
+    const msg=e.name==="TimeoutError"?"timed out (big upload?)":String(e.message).slice(0,70);
+    if(!quiet) toast("Sync failed: "+msg,1);
+    logErr("sync push: "+e.message);
+    clearTimeout(syncTimer); syncTimer=setTimeout(()=>syncPush(true),120000);
+  }
   syncing=false;
+}
+async function syncTest(){
+  saveSyncCfg();
+  if(!syncCfg.url||!syncCfg.pin){ toast("Fill URL + PIN first",1); return; }
+  syncStatus("testing…");
+  const t0=Date.now();
+  try{
+    const res=await syncCall({pin:syncCfg.pin,action:"pull"},20000);
+    const ms=Date.now()-t0;
+    if(res.ok){ syncStatus("test OK · "+ms+"ms");
+      toast(`✓ Connection OK (${ms}ms) — cloud has ${res.data? (res.data.entries||[]).length+" lines":"no data yet"}`); }
+    else { syncStatus("test: "+res.err); toast("Server says: "+res.err,1); }
+  }catch(e){ syncStatus("test failed");
+    toast("✗ "+(e.name==="TimeoutError"?"timed out":String(e.message).slice(0,70)),1);
+    logErr("sync test: "+e.message); }
 }
 function queueAutoSync(){
   if(!syncCfg.auto||!syncCfg.url) return;
@@ -1617,7 +1679,9 @@ function aiSrcGallery(){
 function aiSrcSection(){
   $("linkSheet").classList.remove("show");
   const ph=mediaCache.filter(m=>m.kind==="photo"&&(m.loc===sectionBase()||m.loc.startsWith(sectionBase()+".L")));
-  if(ph.length) aiEnqueue(loc.code, ph[ph.length-1].data, false);
+  if(!ph.length) return;
+  ph.slice(-8).forEach(m=>aiEnqueue(loc.code, m.data, false));   // ALL section photos (up to 8)
+  if(ph.length>1) toast(`✨ ${Math.min(ph.length,8)} photos of ${sectionBase()} queued`);
 }
 async function aiEnqueue(locCode, dataUrl, saveMedia){
   if(saveMedia){
@@ -1630,34 +1694,68 @@ async function aiEnqueue(locCode, dataUrl, saveMedia){
   toast("✨ reading "+locCode+" in background…"); buzz(15);
   runAiJob(job);
 }
+let aiLog=[];
+function aiLogAdd(rec){ aiLog.unshift(rec); aiLog=aiLog.slice(0,40); kvSet("aiLog",aiLog); }
+function salvageJSON(txt){   // truncated response repair: cut at last complete item, close brackets
+  const i=txt.lastIndexOf("}");
+  if(i<0) return null;
+  const cut=txt.slice(0,i+1);
+  for(const tail of ["","]}","}]}","]}]}"]){
+    try{ const p=JSON.parse(cut+tail); if(p&&p.items) return p; }catch(e){}
+  }
+  return null;
+}
 async function runAiJob(job){
+  const t0=Date.now();
   const prompt=`This is a photo of ONE retail shelf section in a UK corner shop. List every distinct product you can identify. Estimate how many units of each are visible (count facings and visible stacked/behind rows). Reply with ONLY JSON, no markdown: {"items":[{"name":"concise retail name","brand":"","size":"e.g. 500ml","count":1,"conf":0.0}]} — conf is 0-1 confidence. If the photo is unusable return {"items":[]}.`;
   try{
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiCfg.model)}:generateContent?key=${encodeURIComponent(aiCfg.key)}`,{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({contents:[{parts:[{text:prompt},
         {inline_data:{mime_type:"image/jpeg",data:job.photo.split(",")[1]}}]}],
-        generationConfig:{temperature:.1,response_mime_type:"application/json"}}),
-      signal:AbortSignal.timeout(90000)});
-    if(!r.ok){ job.status="error";
-      job.err="Gemini "+r.status+(r.status===400?" (check key/model)":r.status===429?" (quota — retry in a min)":"");
-      logErr("gemini "+r.status); toast("✨ "+job.loc+" failed — "+job.err,1); updateAiBadge(); return; }
+        generationConfig:{temperature:.1,response_mime_type:"application/json",maxOutputTokens:8192}}),
+      signal:AbortSignal.timeout(120000)});
+    if(!r.ok){
+      const body=(await r.text()).slice(0,200);
+      job.status="error";
+      job.err="Gemini "+r.status+(r.status===400?" (key/model?)":r.status===429?" (quota — wait a min)":r.status===503?" (overloaded — retry)":"");
+      logErr("gemini "+r.status+": "+body);
+      aiLogAdd({ts:Date.now(),loc:job.loc,ok:0,err:job.err,ms:Date.now()-t0,model:aiCfg.model});
+      toast("✨ "+job.loc+" failed — "+job.err,1); updateAiBadge(); return;
+    }
     const j=await r.json();
+    const fin=((j.candidates||[])[0]||{}).finishReason||"";
     let txt=(((j.candidates||[])[0]||{}).content||{parts:[]}).parts.map(p=>p.text||"").join("");
     txt=txt.replace(/^```json\s*|^```\s*|```\s*$/g,"").trim();
-    const parsed=JSON.parse(txt);
+    let parsed=null;
+    try{ parsed=JSON.parse(txt); }
+    catch(e){ parsed=salvageJSON(txt);
+      if(parsed) logErr("gemini truncated ("+fin+") — salvaged "+job.loc); }
+    if(!parsed){ job.status="error"; job.err="bad JSON ("+(fin||"parse")+")";
+      logErr("gemini parse fail "+job.loc+" fin="+fin+" len="+txt.length);
+      aiLogAdd({ts:Date.now(),loc:job.loc,ok:0,err:job.err,ms:Date.now()-t0,model:aiCfg.model});
+      toast("✨ "+job.loc+" failed — "+job.err,1); updateAiBadge(); return; }
     job.items=(parsed.items||[]).filter(x=>x&&x.name).map(x=>({
       name:String(x.name).slice(0,60), brand:String(x.brand||"").slice(0,30),
       size:String(x.size||"").slice(0,20), count:Math.max(1,parseInt(x.count)||1),
       conf:+x.conf||0, on:true}));
     job.status="ready";
+    aiLogAdd({ts:Date.now(),loc:job.loc,ok:1,items:job.items.length,ms:Date.now()-t0,model:aiCfg.model,
+      trunc:fin==="MAX_TOKENS"?1:0});
     beep(1); buzz([20,40,20]);
     toast(`✨ ${job.loc} ready — ${job.items.length} items · tap ✨ to review`);
   }catch(e){
-    job.status="error"; job.err=e.name==="TimeoutError"?"timed out":"network/parse error";
-    logErr("gemini: "+e.message); toast("✨ "+job.loc+" failed — photo saved",1);
+    job.status="error"; job.err=e.name==="TimeoutError"?"timed out":"network error";
+    logErr("gemini: "+e.message);
+    aiLogAdd({ts:Date.now(),loc:job.loc,ok:0,err:job.err,ms:Date.now()-t0,model:aiCfg.model});
+    toast("✨ "+job.loc+" failed — photo saved",1);
   }
   updateAiBadge();
+}
+async function aiRetry(locCode){
+  const ph=(await idbAll("media")).filter(m=>m.kind==="photo"&&(m.loc===locCode.replace(/\.L\d+$/,"")||m.loc===locCode));
+  if(!ph.length){ toast("No saved photo for "+locCode,1); return; }
+  aiEnqueue(locCode, ph[ph.length-1].data, false);
 }
 function updateAiBadge(){
   const open=aiJobs.filter(j=>j.status!=="done");
@@ -1788,6 +1886,14 @@ async function renderSettings(){
   const phc=e.reduce((a,b)=>a+((b.photos||[]).length),0)+m.filter(x=>x.kind==="photo").length;
   $("statsCard").textContent=`${p.length} products · ${e.length} stock lines · ${pcs} pcs · ${phc} photos · ${m.filter(x=>x.kind==="voice").length} voice notes · stored offline in this browser`;
   $("errList").innerHTML=errLog.length? errLog.map(esc).join("<br>") : "No errors logged ✓";
+  // AI audit
+  $("aiAudit").innerHTML = aiLog.length ? `<div style="font-weight:700;font-size:13px;margin-bottom:6px">AI read log (last ${aiLog.length})</div>`+
+    aiLog.map(r=>`<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--line)">
+      <span>${r.ok?"✅":"❌"}</span>
+      <span class="si-loc">${esc(r.loc)}</span>
+      <span style="flex:1" class="muted">${r.ok? r.items+" items"+(r.trunc?" ⚠trimmed":"") : esc(r.err||"")} · ${Math.round((r.ms||0)/1000)}s · ${new Date(r.ts).toLocaleTimeString().slice(0,5)}</span>
+      ${r.ok?"":`<button style="background:var(--panel);border:1px solid var(--line);color:#c4b5f0;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:700" onclick="aiRetry('${esc(r.loc)}')">↻ retry</button>`}
+    </div>`).join("") : "";
 }
 
 /* ============ EXPORT / IMPORT ============ */
@@ -1853,6 +1959,7 @@ async function wipeAll(){
   syncCfg=(await kvGet("syncCfg"))||syncCfg;
   loadSyncCfgUI();
   aiCfg=(await kvGet("aiCfg"))||aiCfg;
+  aiLog=(await kvGet("aiLog"))||[];
   loadAiCfgUI();
   try{ history.pushState({b:0},""); }catch(e){}
   renderDelivery();
