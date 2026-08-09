@@ -218,8 +218,15 @@ main{flex:1;overflow:hidden;position:relative}
 #delivBanner{display:none;background:rgba(224,165,63,.15);border:1px solid var(--warn);color:#f0c986;
   border-radius:var(--r);padding:10px 12px;font-size:13.5px;font-weight:700}
 #delivBanner.show{display:flex;justify-content:space-between;align-items:center}
-#linkSheet{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:none;align-items:flex-end}
-#linkSheet.show{display:flex}
+#linkSheet,#aiSheet{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:none;align-items:flex-end}
+#linkSheet.show,#aiSheet.show{display:flex}
+.airow{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
+.airow input[type=checkbox]{width:20px;height:20px;flex:none}
+.airow .nm{flex:1;min-width:0;font-size:13.5px;font-weight:600}
+.airow .nm small{display:block;color:var(--dim);font-weight:400;font-size:11px}
+.airow input.q{width:58px;text-align:center;padding:7px;font-size:15px;font-weight:800}
+.aispin{display:inline-block;width:16px;height:16px;border:2.5px solid var(--line);border-top-color:#c4b5f0;border-radius:50%;animation:spin 1s linear infinite;vertical-align:-3px;margin-right:7px}
+@keyframes spin{to{transform:rotate(360deg)}}
 #linkSheetIn{background:var(--panel);width:100%;border-radius:20px 20px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto}
 #linkSheetIn h3{font-size:15px;margin-bottom:4px}
 #linkList{display:flex;flex-direction:column;gap:7px;margin-top:10px}
@@ -320,6 +327,9 @@ main{flex:1;overflow:hidden;position:relative}
           <button id="nbBtn" onclick="noBarcode()">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3l-1.7 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.3L15 3H9z"/></svg>
             No barcode</button>
+          <button id="aiBtn" onclick="aiReadShelf()" style="border-color:#4a3a7a;color:#c4b5f0">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 5.8L20 10l-5.8 2.2L12 18l-2.2-5.8L4 10l5.8-2.2zM19 15l1.2 3 3 1.2-3 1.2L19 23l-1.2-2.6L14.8 19l3-1.2z"/></svg>
+            AI read</button>
         </div>
       </div>
       <div id="mediaStrip"></div>
@@ -445,6 +455,14 @@ main{flex:1;overflow:hidden;position:relative}
   <!-- SETTINGS -->
   <div class="view" id="setView">
     <div class="card">
+      <h3 style="font-size:15px;margin-bottom:6px">✨ AI vision (Gemini)</h3>
+      <div class="muted" style="margin-bottom:8px">Powers the "AI read" button: photo a shelf section →
+        products + quantities drafted automatically, you confirm. Free key from
+        aistudio.google.com/apikey (guide in chat).</div>
+      <input id="aiKey" placeholder="Gemini API key (AIza…)" style="width:100%;margin-bottom:7px" onchange="saveAiCfg()">
+      <input id="aiModel" placeholder="Model" value="gemini-2.5-flash" style="width:100%" onchange="saveAiCfg()">
+    </div>
+    <div class="card">
       <h3 style="font-size:15px;margin-bottom:6px">Cloud sync <span id="syncState" class="muted" style="font-weight:400"></span></h3>
       <div class="muted" style="margin-bottom:8px">Free backend on Hassan's own Google account (Apps Script) —
         data + photos + voice go to Drive, plus a live Google Sheet the till can read. Setup guide in chat.</div>
@@ -499,6 +517,7 @@ main{flex:1;overflow:hidden;position:relative}
 
 <div id="sheet">
   <div style="display:flex;align-items:center;gap:10px">
+    <button onclick="hideSheet()" style="width:38px;height:38px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--dim);font-size:15px;flex:none">✕</button>
     <div style="flex:1;min-width:0">
       <div id="sheetTitle"></div>
       <div id="sheetSub"></div>
@@ -532,6 +551,14 @@ main{flex:1;overflow:hidden;position:relative}
     <h3>Which delivery item is this?</h3>
     <div class="muted" id="linkSub"></div>
     <div id="linkList"></div>
+  </div>
+</div>
+<div id="aiSheet" onclick="if(event.target===this)this.classList.remove('show')">
+  <div id="linkSheetIn" style="max-height:80vh">
+    <h3 id="aiTitle">✨ AI shelf read</h3>
+    <div class="muted" id="aiSub"></div>
+    <div id="aiList" style="display:flex;flex-direction:column;gap:7px;margin-top:10px"></div>
+    <button id="aiConfirm" style="display:none;width:100%;margin-top:12px;padding:14px;border-radius:12px;background:var(--acc);color:#04211d;font-weight:900;font-size:16px" onclick="aiConfirmSave()">Add to section ✓</button>
   </div>
 </div>
 <div id="toast"></div>
@@ -664,7 +691,25 @@ function beep(ok){ try{ actx=actx||new (window.AudioContext||window.webkitAudioC
   o.frequency.value=ok?1320:340; g.gain.value=.14; o.start(); o.stop(actx.currentTime+(ok?.09:.22)); }catch(e){} }
 const esc=s=>String(s??"").replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 
-/* ============ NAV ============ */
+/* ============ NAV + BACK-BUTTON HANDLING ============ */
+/* Android back / swipe-back closes the topmost overlay, then returns to Scan — never exits dead. */
+const uiReg={
+  sheet:{el:()=>$("sheet"),cls:"show"},
+  elev:{el:()=>$("elevView"),cls:"show"},
+  photo:{el:()=>$("photoView"),cls:"show"},
+  link:{el:()=>$("linkSheet"),cls:"show"},
+  ai:{el:()=>$("aiSheet"),cls:"show"},
+};
+let uiStack=[];
+function uiPush(k){ uiStack.push(k); try{ history.pushState({k},""); }catch(e){} }
+window.addEventListener("popstate",()=>{
+  while(uiStack.length){
+    const k=uiStack.pop(), r=uiReg[k];
+    if(r && r.el() && r.el().classList.contains(r.cls)){ r.el().classList.remove(r.cls); return; }
+  }
+  const cur=document.querySelector("#tabs button.on");
+  if(cur && cur.dataset.v!=="scan"){ go("scan"); try{ history.pushState({b:1},""); }catch(e){} }
+});
 function go(v){ document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
   $( {scan:"scanView",map:"mapView",stock:"stockView",deliv:"delivView",set:"setView"}[v] ).classList.add("on");
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
@@ -718,7 +763,9 @@ async function refreshMapCounts(){
 function pickFixture(f){
   selFx=f; selFace=f.faces[0].k; selSec=0;
   document.querySelectorAll(".fx").forEach(x=>x.classList.remove("sel"));
-  $("fx-"+f.id).classList.add("sel"); buzz(10); renderSheet();
+  $("fx-"+f.id).classList.add("sel"); buzz(10);
+  if(!$("sheet").classList.contains("show")) uiPush("sheet");
+  renderSheet();
 }
 function renderSheet(){
   const f=selFx;
@@ -1082,8 +1129,8 @@ function renderPhotos(){
   $("photoBadge").textContent=photos.length;
   $("thumbRow").innerHTML=photos.map((p,i)=>`<img src="${p}" onclick="viewPhoto('${i}')">`).join("");
 }
-function viewPhoto(i){ $("photoViewImg").src=photos[i]; $("photoView").classList.add("show"); }
-function viewPhotoSrc(s){ $("photoViewImg").src=s; $("photoView").classList.add("show"); }
+function viewPhoto(i){ $("photoViewImg").src=photos[i]; uiPush("photo"); $("photoView").classList.add("show"); }
+function viewPhotoSrc(s){ $("photoViewImg").src=s; uiPush("photo"); $("photoView").classList.add("show"); }
 
 /* ============ SAVE ============ */
 async function saveEntry(){
@@ -1321,7 +1368,7 @@ async function openLinkSheet(code){
   $("linkList").innerHTML=deliv.lines.map((l,i)=>
     `<button onclick="linkTo(${i})">${esc(l.desc)} <span class="muted">(${l.got}/${l.exp})</span></button>`).join("")
     +`<button class="extra" onclick="linkExtra()">➕ Not on the list — extra / bonus / promo</button>`;
-  $("linkSheet").classList.add("show"); buzz(20);
+  uiPush("link"); $("linkSheet").classList.add("show"); buzz(20);
 }
 async function linkTo(i){ $("linkSheet").classList.remove("show");
   if(pendingLink!=null) bumpDeliv(i,1,pendingLink); pendingLink=null; }
@@ -1493,6 +1540,7 @@ async function openElev(base){
       <div class="evits">${items||'<span class="evempty">empty</span>'}</div></div><div class="evsteel"></div>`;
   }
   const tot=entries.reduce((a,b)=>a+b.qty,0);
+  if(!$("elevView").classList.contains("show")) uiPush("elev");
   $("elevBody").innerHTML=`
     <div class="evhead"><div><div class="evt1">${base} — ${esc(f.nm)}</div>
       <div class="evt2">PRODUCT ELEVATION · ${tot} pcs · ${entries.length} lines · rev AQ</div></div>
@@ -1502,6 +1550,94 @@ async function openElev(base){
 }
 function elevFromStock(){ const v=$("stockFilter").value; if(!v){ toast("Pick a location filter first",1); return; }
   openElev(v.replace(/\.L\d+$/,"")); }
+
+/* ============ AI VISION (Gemini) ============ */
+let aiCfg={key:"",model:"gemini-2.5-flash"}, aiItems=[], aiPhoto=null;
+function saveAiCfg(){ aiCfg={key:$("aiKey").value.trim(),model:$("aiModel").value.trim()||"gemini-2.5-flash"};
+  kvSet("aiCfg",aiCfg); }
+function loadAiCfgUI(){ $("aiKey").value=aiCfg.key||""; $("aiModel").value=aiCfg.model||"gemini-2.5-flash"; }
+async function aiReadShelf(){
+  if(!loc){ toast("Pick a location first",1); go("map"); return; }
+  if(!aiCfg.key){ toast("Set your Gemini key first (More → AI vision)",1); go("set"); return; }
+  const v=$("cam");
+  const run=d=>{ aiPhoto=d; aiCall(d); };
+  if(stream && v.readyState>=2 && !paused){
+    const c=document.createElement("canvas");
+    const s=Math.min(1,1300/v.videoWidth);
+    c.width=v.videoWidth*s; c.height=v.videoHeight*s;
+    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+    run(c.toDataURL("image/jpeg",.78));
+  } else {
+    $("photoInput").onchange=async e=>{ const f=e.target.files[0]; e.target.value="";
+      if(f) run(await shrink(f,1300)); };
+    $("photoInput").click();
+  }
+}
+async function aiCall(dataUrl){
+  uiPush("ai"); $("aiSheet").classList.add("show");
+  $("aiTitle").textContent="✨ AI shelf read — "+sectionBase();
+  $("aiSub").innerHTML='<span class="aispin"></span>Gemini is reading the shelf…';
+  $("aiList").innerHTML=""; $("aiConfirm").style.display="none"; aiItems=[];
+  // keep the photo as section media too
+  await idbPut("media",{guid:uuid(),loc:sectionBase(),fx:loc.fx,kind:"photo",data:dataUrl,ts:Date.now()});
+  renderSecCap(); queueAutoSync();
+  const prompt=`This is a photo of ONE retail shelf section in a UK corner shop. List every distinct product you can identify. Estimate how many units of each are visible (count facings and visible stacked/behind rows). Reply with ONLY JSON, no markdown: {"items":[{"name":"concise retail name","brand":"","size":"e.g. 500ml","count":1,"conf":0.0}]} — conf is 0-1 confidence. If the photo is unusable return {"items":[]}.`;
+  try{
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiCfg.model)}:generateContent?key=${encodeURIComponent(aiCfg.key)}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt},
+        {inline_data:{mime_type:"image/jpeg",data:dataUrl.split(",")[1]}}]}],
+        generationConfig:{temperature:.1,response_mime_type:"application/json"}}),
+      signal:AbortSignal.timeout(60000)});
+    if(!r.ok){ const t=await r.text();
+      $("aiSub").textContent="⚠ Gemini error "+r.status+(r.status===400?" — check the API key":r.status===429?" — rate/quota, try again in a minute":"")+".";
+      logErr("gemini "+r.status+": "+t.slice(0,120)); return; }
+    const j=await r.json();
+    let txt=(((j.candidates||[])[0]||{}).content||{parts:[]}).parts.map(p=>p.text||"").join("");
+    txt=txt.replace(/^```json\s*|^```\s*|```\s*$/g,"").trim();
+    const parsed=JSON.parse(txt);
+    aiItems=(parsed.items||[]).filter(x=>x&&x.name).map(x=>({
+      name:String(x.name).slice(0,60), brand:String(x.brand||"").slice(0,30),
+      size:String(x.size||"").slice(0,20), count:Math.max(1,parseInt(x.count)||1),
+      conf:+x.conf||0, on:true}));
+    if(!aiItems.length){ $("aiSub").textContent="Couldn't identify products — try a closer/straighter photo."; return; }
+    $("aiSub").textContent="Check quantities, untick anything wrong, then add:";
+    $("aiList").innerHTML=aiItems.map((it,i)=>`
+      <div class="airow">
+        <input type="checkbox" ${it.on?"checked":""} onchange="aiItems[${i}].on=this.checked">
+        <div class="nm">${esc(it.name)}<small>${esc([it.brand,it.size].filter(Boolean).join(" · "))}${it.conf?` · ${Math.round(it.conf*100)}%`:""}</small></div>
+        <input class="q" type="number" min="1" value="${it.count}" onchange="aiItems[${i}].count=Math.max(1,+this.value||1)">
+      </div>`).join("");
+    $("aiConfirm").style.display="block";
+    buzz([20,30,20]);
+  }catch(e){
+    $("aiSub").textContent="⚠ Failed: "+(e.name==="TimeoutError"?"timed out":"couldn't reach Gemini / bad response")+". Photo is saved — try again or leave it for the export decrypt.";
+    logErr("gemini: "+e.message);
+  }
+}
+async function aiConfirmSave(){
+  const picked=aiItems.filter(x=>x.on);
+  if(!picked.length){ toast("Nothing ticked",1); return; }
+  const prods=await idbAll("products");
+  let n=0,pcs=0;
+  for(const it of picked){
+    // reuse an existing product with same name (case-insens) if we have one
+    let p=prods.find(x=>(x.name||"").toLowerCase()===it.name.toLowerCase());
+    if(!p){ p={barcode:"AI-"+uuid().slice(0,8).toUpperCase(), name:it.name, brand:it.brand,
+      size:it.size, img:"", pend:1, ai:1}; await idbPut("products",p); }
+    const all=await idbAll("entries");
+    const ex=all.find(e=>e.barcode===p.barcode && e.loc===loc.code);
+    if(ex){ ex.qty+=it.count; ex.ts=Date.now(); await idbPut("entries",ex); }
+    else await idbPut("entries",{guid:uuid(),u:syncCfg.user||"",barcode:p.barcode,loc:loc.code,
+      fx:loc.fx,qty:it.count,ts:Date.now(),photos:[],ai:1});
+    session.unshift({name:it.name,loc:loc.code,qty:it.count});
+    n++; pcs+=it.count;
+  }
+  $("aiSheet").classList.remove("show");
+  renderSession(); refreshMapCounts(); queueAutoSync();
+  beep(1); buzz([20,30,60]);
+  toast(`✨ ${n} products · ${pcs} pcs → ${loc.code}`);
+}
 
 /* ============ ERROR LOG + SELF-HEALING ============ */
 let errLog=[];
@@ -1589,6 +1725,9 @@ async function wipeAll(){
   deliv=(await kvGet("deliv"))||null;
   syncCfg=(await kvGet("syncCfg"))||syncCfg;
   loadSyncCfgUI();
+  aiCfg=(await kvGet("aiCfg"))||aiCfg;
+  loadAiCfgUI();
+  try{ history.pushState({b:0},""); }catch(e){}
   renderDelivery();
   const savedLoc=await kvGet("loc");
   if(savedLoc && savedLoc.code && fxById(savedLoc.fx)){
