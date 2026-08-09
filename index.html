@@ -408,6 +408,8 @@ main{flex:1;overflow:hidden;position:relative}
       <select id="stockFilter" onchange="renderStock()"><option value="">All locations</option></select>
       <button style="background:rgba(74,127,212,.25);color:#9db8e8;width:44px;border-radius:10px;font-size:16px;flex:none"
         onclick="elevFromStock()" title="Blueprint view">👁</button>
+      <button id="countBtn" style="background:rgba(63,182,168,.2);color:var(--acc);width:44px;border-radius:10px;font-size:16px;flex:none;border:1px solid #1d5a52"
+        onclick="toggleCount()" title="Count mode — big +/- per line">✓</button>
     </div>
     <div id="stockSummary"></div>
     <div id="stockList" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -1215,14 +1217,19 @@ async function renderStock(){
   html+=list.map(e=>{
     const p=prods[e.barcode]||{};
     const ph=(e.photos&&e.photos[0])||p.img;
+    const qtyCtl = countMode
+      ? `<button class="qbtn" style="width:46px;height:46px;font-size:22px" onclick="bumpEntry(${e.id},-1)">−</button>
+         <div class="si-qty" id="eq-${e.id}" style="min-width:44px;text-align:center">${e.qty}</div>
+         <button class="qbtn" style="width:46px;height:46px;font-size:22px" onclick="bumpEntry(${e.id},1)">+</button>`
+      : `<div class="si-qty">${e.qty}</div>
+         <button class="si-del" onclick="delEntry(${e.id})">✕</button>`;
     return `<div class="stockItem">
       ${ph?`<img src="${ph}" onclick="viewPhotoSrc(this.src)">`:`<img src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52"><rect width="52" height="52" rx="9" fill="#1f2630"/></svg>')}">`}
       <div class="si-main">
         <div class="si-name">${esc(p.name||e.barcode)}</div>
         <div class="si-sub"><span class="si-loc">${e.loc}</span>${esc(p.size||"")} <span style="opacity:.6">${e.barcode}</span></div>
       </div>
-      <div class="si-qty">${e.qty}</div>
-      <button class="si-del" onclick="delEntry(${e.id})">✕</button>
+      ${qtyCtl}
     </div>`;
   }).join("");
   $("stockList").innerHTML=html || `<div class="muted" style="text-align:center;padding:30px 0">No stock yet — go scan!</div>`;
@@ -1230,6 +1237,21 @@ async function renderStock(){
 async function delEntry(id){
   if(!confirm("Delete this stock line?")) return;
   await idbDel("entries",id); renderStock(); toast("Deleted");
+}
+let countMode=false;
+function toggleCount(){
+  countMode=!countMode;
+  $("countBtn").style.background=countMode?"var(--acc)":"rgba(63,182,168,.2)";
+  $("countBtn").style.color=countMode?"#04211d":"var(--acc)";
+  toast(countMode?"✓ Count mode — tap −/+ to fix quantities":"Count mode off");
+  renderStock();
+}
+async function bumpEntry(id,d){
+  const e=await idbGet("entries",id); if(!e) return;
+  e.qty=Math.max(0,e.qty+d); e.ts=Date.now();
+  if(e.qty===0){ await idbDel("entries",id); renderStock(); }
+  else{ await idbPut("entries",e); const el=$("eq-"+id); if(el) el.textContent=e.qty; }
+  buzz(8); queueAutoSync();
 }
 
 /* ============ DELIVERY CHECK ============ */
@@ -1714,7 +1736,7 @@ function salvageJSON(txt){   // truncated response repair: cut at last complete 
 }
 async function runAiJob(job){
   const t0=Date.now();
-  const prompt=`This is a photo of ONE retail shelf section in a UK corner shop. List every distinct product you can identify. Estimate how many units of each are visible (count facings and visible stacked/behind rows). Reply with ONLY JSON, no markdown: {"items":[{"name":"concise retail name","brand":"","size":"e.g. 500ml","count":1,"conf":0.0}]} — conf is 0-1 confidence. If the photo is unusable return {"items":[]}.`;
+  const prompt=`This is a photo of ONE retail shelf section in a UK corner shop. First count the shelf levels visible (bottom shelf = 1, counting upward). Then list every distinct product and WHICH SHELF it sits on. Estimate units visible per product (facings + visible stacked/behind rows). Reply with ONLY JSON, no markdown: {"shelves_total":4,"items":[{"name":"concise retail name","brand":"","size":"e.g. 500ml","count":1,"shelf":2,"conf":0.0}]} — shelf is the level from the bottom (1=lowest), conf is 0-1. If the photo is unusable return {"shelves_total":0,"items":[]}.`;
   try{
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiCfg.model)}:generateContent?key=${encodeURIComponent(aiCfg.key)}`,{
       method:"POST",headers:{"Content-Type":"application/json"},
@@ -1742,10 +1764,11 @@ async function runAiJob(job){
       logErr("gemini parse fail "+job.loc+" fin="+fin+" len="+txt.length);
       aiLogAdd({ts:Date.now(),loc:job.loc,ok:0,err:job.err,ms:Date.now()-t0,model:aiCfg.model});
       toast("✨ "+job.loc+" failed — "+job.err,1); updateAiBadge(); return; }
+    job.shelvesTotal=parseInt(parsed.shelves_total)||0;
     job.items=(parsed.items||[]).filter(x=>x&&x.name).map(x=>({
       name:String(x.name).slice(0,60), brand:String(x.brand||"").slice(0,30),
       size:String(x.size||"").slice(0,20), count:Math.max(1,parseInt(x.count)||1),
-      conf:+x.conf||0, on:true}));
+      sh:Math.max(0,parseInt(x.shelf)||0), conf:+x.conf||0, on:true}));
     job.status="ready";
     aiLogAdd({ts:Date.now(),loc:job.loc,ok:1,items:job.items.length,ms:Date.now()-t0,model:aiCfg.model,
       trunc:fin==="MAX_TOKENS"?1:0});
@@ -1786,12 +1809,16 @@ function openAiJobs(){
 function showAiReview(job){
   aiCur=job;
   uiPush("ai"); $("aiSheet").classList.add("show");
-  $("aiTitle").textContent="✨ "+job.loc+" — "+job.items.length+" items";
-  $("aiSub").textContent="Check quantities, untick anything wrong, then add:";
-  $("aiList").innerHTML=job.items.map((it,i)=>`
+  $("aiTitle").textContent="✨ "+job.loc+" — "+job.items.length+" items"+(job.shelvesTotal?` · ${job.shelvesTotal} shelves seen`:"");
+  $("aiSub").textContent="Check qty + shelf (L, 1=bottom), untick anything wrong, then add:";
+  const sorted=[...job.items].map((it,i)=>({it,i})).sort((a,b)=>(b.it.sh||0)-(a.it.sh||0));
+  $("aiList").innerHTML=sorted.map(({it,i})=>`
     <div class="airow">
       <input type="checkbox" ${it.on?"checked":""} onchange="aiCur.items[${i}].on=this.checked">
       <div class="nm">${esc(it.name)}<small>${esc([it.brand,it.size].filter(Boolean).join(" · "))}${it.conf?` · ${Math.round(it.conf*100)}%`:""}</small></div>
+      <span style="color:var(--dim);font-size:11px">L</span>
+      <input class="q" type="number" min="0" max="12" value="${it.sh||0}" style="width:44px"
+        onchange="aiCur.items[${i}].sh=Math.max(0,+this.value||0)" title="shelf (0=whole section)">
       <input class="q" type="number" min="1" value="${it.count}" onchange="aiCur.items[${i}].count=Math.max(1,+this.value||1)">
     </div>`).join("");
   $("aiConfirm").style.display="block";
@@ -1801,18 +1828,20 @@ async function aiConfirmSave(){
   const picked=job.items.filter(x=>x.on);
   if(!picked.length){ toast("Nothing ticked",1); return; }
   const fx=job.loc.split(".")[0];
+  const base=job.loc.replace(/\.L\d+$/,"");
   const prods=await idbAll("products");
   let n=0,pcs=0;
   for(const it of picked){
     let p=prods.find(x=>(x.name||"").toLowerCase()===it.name.toLowerCase());
     if(!p){ p={barcode:"AI-"+uuid().slice(0,8).toUpperCase(), name:it.name, brand:it.brand,
       size:it.size, img:"", pend:1, ai:1}; await idbPut("products",p); prods.push(p); }
+    const dest = it.sh ? base+".L"+it.sh : job.loc;   // shelf-aware placement
     const all=await idbAll("entries");
-    const ex=all.find(e=>e.barcode===p.barcode && e.loc===job.loc);
+    const ex=all.find(e=>e.barcode===p.barcode && e.loc===dest);
     if(ex){ ex.qty+=it.count; ex.ts=Date.now(); await idbPut("entries",ex); }
-    else await idbPut("entries",{guid:uuid(),u:syncCfg.user||"",barcode:p.barcode,loc:job.loc,
+    else await idbPut("entries",{guid:uuid(),u:syncCfg.user||"",barcode:p.barcode,loc:dest,
       fx,qty:it.count,ts:Date.now(),photos:[],ai:1});
-    session.unshift({name:it.name,loc:job.loc,qty:it.count});
+    session.unshift({name:it.name,loc:dest,qty:it.count});
     n++; pcs+=it.count;
   }
   job.status="done"; aiCur=null;
@@ -1844,10 +1873,31 @@ async function dedupeAI(){
     g.sort((a,b)=>b.qty-a.qty);
     for(let i=1;i<g.length;i++){ doomed.push(g[i]); del++; pcs+=g[i].qty; }
   }
-  if(!del){ toast("No repeated AI reads found ✓"); return; }
-  if(!confirm(`Found ${del} duplicate AI lines (${pcs} pcs double-counted). Keep the biggest of each and delete the rest?`)) return;
+  // pass 2: barcode scans SUPERSEDE matching AI lines in the same section (scan = truth)
+  const norm=s=>String(s||"").toLowerCase().replace(/[^a-z0-9 ]+/g," ")
+    .replace(/\b(cans?|bottles?|packs?|assorted|pmp|display|boxes?|bags?|original|the|of)\b/g,"").replace(/\s+/g," ").trim();
+  const scannedBy={};   // base -> [norm names]
+  for(const e of entries){
+    if(e.ai||/^AI-/.test(e.barcode)) continue;
+    const nm=norm((prods[e.barcode]||{}).name); if(nm.length<4) continue;
+    (scannedBy[e.loc.replace(/\.L\d+$/,"")]=scannedBy[e.loc.replace(/\.L\d+$/,"")]||[]).push(nm);
+  }
+  let sup=0,supPcs=0;
+  const doomedIds=new Set(doomed.map(d=>d.id));
+  for(const e of entries){
+    if(!(e.ai||/^AI-/.test(e.barcode)) || doomedIds.has(e.id)) continue;
+    const scans=scannedBy[e.loc.replace(/\.L\d+$/,"")]; if(!scans) continue;
+    const an=norm((prods[e.barcode]||{}).name); if(an.length<4) continue;
+    if(scans.some(sn=>sn===an||sn.includes(an)||an.includes(sn))){
+      doomed.push(e); doomedIds.add(e.id); sup++; supPcs+=e.qty;
+    }
+  }
+  if(!doomed.length){ toast("Nothing to clean ✓"); return; }
+  const msg=[del?`${del} repeated AI lines (${pcs} pcs)`:"",
+    sup?`${sup} AI lines superseded by your barcode scans (${supPcs} pcs)`:""].filter(Boolean).join(" + ");
+  if(!confirm(`Clean up ${msg}? Scans are never touched.`)) return;
   for(const e of doomed) await idbDel("entries",e.id);
-  toast(`🧹 removed ${del} duplicate lines · −${pcs} pcs`);
+  toast(`🧹 removed ${doomed.length} lines · −${pcs+supPcs} pcs double-count`);
   buzz([25,40,25]); renderStock(); refreshMapCounts(); queueAutoSync();
 }
 
