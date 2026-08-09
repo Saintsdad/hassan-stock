@@ -357,6 +357,7 @@ main{flex:1;overflow:hidden;position:relative}
             <div id="prodBarcode"></div>
           </div>
         </div>
+        <div id="prodInfo" class="muted" style="display:none;font-size:11px;line-height:1.45;max-height:84px;overflow-y:auto;white-space:pre-line;margin-top:4px"></div>
         <div id="nameEditRow">
           <input id="nameEdit" placeholder="Product name">
           <input id="sizeEdit" placeholder="Size" style="max-width:90px">
@@ -512,11 +513,12 @@ main{flex:1;overflow:hidden;position:relative}
       <button class="setBtn" style="justify-content:center" onclick="window.open('map.html','_blank')">🗺 Open live map</button>
     </div>
     <div class="card">
-      <h3 style="font-size:15px;margin-bottom:6px">🖼 Product pictures</h3>
-      <div class="muted" style="margin-bottom:8px">Scans sometimes miss the product photo (slow signal
-        in the shop). This goes through every barcode that has no picture and fetches it from
-        Open Food Facts — pictures then show in the blueprint view, stock list and live map.</div>
-      <button class="setBtn" style="justify-content:center" id="imgFetchBtn" onclick="fetchMissingImgs()">🖼 Fetch missing pictures</button>
+      <h3 style="font-size:15px;margin-bottom:6px">🧠 Product info (food database)</h3>
+      <div class="muted" style="margin-bottom:8px">Goes through every scanned barcode and pulls
+        everything Open Food Facts knows: proper name, brand, size, picture, ingredients, allergens,
+        categories, Nutri-Score. Only fills what's missing — never overwrites names you've set.
+        Takes a few minutes for a big backlog; safe to leave running.</div>
+      <button class="setBtn" style="justify-content:center" id="imgFetchBtn" onclick="offEnrich()">🧠 Fetch product info</button>
     </div>
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:6px">🧹 Clean-up</h3>
@@ -1119,20 +1121,38 @@ function showCard(){
   $("fbBtn").style.display = (edit && !p.img) ? "block" : "none";
   $("nameEdit").value=p.name||""; $("sizeEdit").value=p.size||"";
   $("qtyVal").textContent=qty;
+  const info=[p.cat, p.alg?"⚠ contains: "+p.alg:"", p.nsc?"Nutri-Score "+p.nsc:"", p.ing?"Ingredients: "+p.ing:""].filter(Boolean).join("\n");
+  const pi=$("prodInfo"); pi.textContent=info; pi.style.display=info?"block":"none";
   $("saveBtn").disabled=!loc;
   if(!loc) toast("Pick a location first (map)",1);
+}
+function offMerge(p, pr, fillCore){
+  let hit=0;
+  if(fillCore){
+    if(!p.name&&pr.product_name){ p.name=pr.product_name; p.pend=0; hit=1; }
+    if(!p.brand&&pr.brands){ p.brand=String(pr.brands).split(",")[0].trim(); hit=1; }
+    if(!p.size&&pr.quantity){ p.size=pr.quantity; hit=1; }
+    const u=pr.image_front_small_url||pr.image_front_url;
+    if(!p.img&&u){ p.img=u; hit=1; }
+  }
+  if(!p.ing&&pr.ingredients_text){ p.ing=pr.ingredients_text; hit=1; }
+  if(!p.cat&&pr.categories_tags&&pr.categories_tags.length){ p.cat=pr.categories_tags.slice(0,6).map(c=>String(c).replace(/^\w\w:/,"").replace(/-/g," ")).join(" · "); hit=1; }
+  if(!p.alg&&pr.allergens_tags&&pr.allergens_tags.length){ p.alg=pr.allergens_tags.map(a=>String(a).replace(/^\w\w:/,"")).join(", "); hit=1; }
+  if(!p.nsc&&pr.nutriscore_grade){ p.nsc=String(pr.nutriscore_grade).toUpperCase(); hit=1; }
+  return hit;
 }
 async function lookup(code){
   $("prodMeta").textContent="Looking up…";
   try{
-    const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,brands,quantity,image_front_small_url",{signal:AbortSignal.timeout(6000)});
+    const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,brands,quantity,image_front_small_url,image_front_url,ingredients_text,categories_tags,allergens_tags,nutriscore_grade",{signal:AbortSignal.timeout(6000)});
     const j=await r.json();
     if(j.status===1 && j.product){
       const pr=j.product;
       current.product.name=pr.product_name||"";
       current.product.brand=(pr.brands||"").split(",")[0];
       current.product.size=pr.quantity||"";
-      if(pr.image_front_small_url){ try{ current.product.img=await urlToData(pr.image_front_small_url); }catch(e){} }
+      offMerge(current.product, pr, false);
+      if(pr.image_front_small_url){ try{ current.product.img=await urlToData(pr.image_front_small_url); }catch(e){ current.product.img=current.product.img||pr.image_front_small_url; } }
       await idbPut("products",current.product);
       showCard(); return;
     }
@@ -1688,22 +1708,29 @@ function evZoom(src){
     z.onclick=()=>z.classList.remove("show"); document.body.appendChild(z); }
   z.querySelector("img").src=src; z.classList.add("show");
 }
-async function fetchMissingImgs(){
+async function offEnrich(){
   const btn=$("imgFetchBtn");
-  const all=(await idbAll("products")).filter(p=>/^\d{6,}$/.test(String(p.barcode))&&!p.img);
-  if(!all.length){ toast("No pictures missing — all set 🖼"); return; }
+  const all=(await idbAll("products")).filter(p=>/^\d{6,}$/.test(String(p.barcode))
+    &&(!p.img||!p.name||!p.ing||!p.cat)&&!p.offMiss);
+  if(!all.length){ toast("Everything already has its info 🧠"); return; }
   btn.disabled=true; let got=0,done=0;
   for(const p of all){
-    done++; btn.textContent=`🖼 ${done}/${all.length}… (found ${got})`;
+    done++; btn.textContent=`🧠 ${done}/${all.length}… (found ${got})`;
     try{
-      const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(p.barcode)+".json?fields=image_front_small_url,image_front_url",{signal:AbortSignal.timeout(7000)});
-      if(r.ok){ const j=await r.json(); const u=j.product&&(j.product.image_front_small_url||j.product.image_front_url);
-        if(u){ p.img=u; await idbPut("products",p); got++; } }
+      const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(p.barcode)
+        +".json?fields=product_name,brands,quantity,image_front_small_url,image_front_url,ingredients_text,categories_tags,allergens_tags,nutriscore_grade",
+        {signal:AbortSignal.timeout(8000)});
+      if(r.status===404){ p.offMiss=Date.now(); await idbPut("products",p); }
+      else if(r.ok){
+        const j=await r.json(); const pr=(j&&j.product)||{};
+        if(offMerge(p, pr, true)){ got++; await idbPut("products",p); }
+        else { p.offMiss=Date.now(); await idbPut("products",p); }
+      }
     }catch(e){}
-    await new Promise(res=>setTimeout(res,250));
+    await new Promise(res=>setTimeout(res,650));
   }
-  btn.disabled=false; btn.textContent="🖼 Fetch missing pictures";
-  toast(`🖼 got ${got} pictures (${all.length-got} not on Open Food Facts)`);
+  btn.disabled=false; btn.textContent="🧠 Fetch product info";
+  toast(`🧠 enriched ${got} of ${all.length} products (rest not on the database)`);
   queueAutoSync(); renderStock();
 }
 function elevFromStock(){ const v=$("stockFilter").value; if(!v){ toast("Pick a location filter first",1); return; }
