@@ -498,6 +498,13 @@ main{flex:1;overflow:hidden;position:relative}
     </div>
     <div class="card muted" id="statsCard"></div>
     <div class="card">
+      <h3 style="font-size:15px;margin-bottom:6px">🧹 Clean-up</h3>
+      <div class="muted" style="margin-bottom:8px">Ran AI read more than once on the same shelf?
+        This finds repeated AI lines (same product name, same section), keeps the biggest count,
+        deletes the copies. Barcode-scanned lines are never touched.</div>
+      <button class="setBtn" style="justify-content:center" onclick="dedupeAI()">🧹 Dedupe repeated AI reads</button>
+    </div>
+    <div class="card">
       <h3 style="font-size:15px;margin-bottom:6px">↔ Fix section direction</h3>
       <div class="muted" style="margin-bottom:8px">Walked a run the wrong way? This reverses the section
         numbers (1↔last) for one face — all stock lines, photos and voice notes move with it.</div>
@@ -1815,6 +1822,33 @@ async function aiConfirmSave(){
   toast(`✨ ${n} products · ${pcs} pcs → ${job.loc}`);
   const next=aiJobs.find(j=>j.status==="ready");
   if(next) setTimeout(()=>showAiReview(next),450);
+}
+
+/* ============ AI DEDUPE ============ */
+async function dedupeAI(){
+  const prods={}; (await idbAll("products")).forEach(p=>prods[p.barcode]=p);
+  const entries=await idbAll("entries");
+  const groups={};
+  for(const e of entries){
+    if(!e.ai && !/^AI-/.test(e.barcode)) continue;          // only AI lines
+    const nm=((prods[e.barcode]||{}).name||"").toLowerCase().trim();
+    if(!nm) continue;
+    const key=e.loc.replace(/\.L\d+$/,"")+"||"+nm;
+    (groups[key]=groups[key]||[]).push(e);
+  }
+  let del=0,pcs=0;
+  const doomed=[];
+  for(const k in groups){
+    const g=groups[k];
+    if(g.length<2) continue;
+    g.sort((a,b)=>b.qty-a.qty);
+    for(let i=1;i<g.length;i++){ doomed.push(g[i]); del++; pcs+=g[i].qty; }
+  }
+  if(!del){ toast("No repeated AI reads found ✓"); return; }
+  if(!confirm(`Found ${del} duplicate AI lines (${pcs} pcs double-counted). Keep the biggest of each and delete the rest?`)) return;
+  for(const e of doomed) await idbDel("entries",e.id);
+  toast(`🧹 removed ${del} duplicate lines · −${pcs} pcs`);
+  buzz([25,40,25]); renderStock(); refreshMapCounts(); queueAutoSync();
 }
 
 /* ============ SECTION DIRECTION FLIP ============ */
