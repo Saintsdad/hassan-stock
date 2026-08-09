@@ -70,11 +70,24 @@ main{flex:1;overflow:hidden;position:relative}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
 
 /* section capture bar */
-#secCap{display:none;gap:8px}
+#secCap{display:none;flex-direction:column;gap:8px}
 #secCap.show{display:flex}
-#secCap button{flex:1;padding:13px 4px;font-weight:800;font-size:13.5px;border:1px solid var(--line);
-  background:var(--panel2);color:var(--txt);display:flex;flex-direction:column;align-items:center;gap:3px}
-#secCap button svg{width:21px;height:21px}
+#secNav{display:flex;gap:8px;align-items:stretch}
+#secNav .nav{width:64px;font-size:22px;font-weight:900;background:var(--panel2);
+  border:1px solid var(--line);color:var(--txt);border-radius:12px}
+#secNow{flex:1;background:rgba(63,182,168,.12);border:1px solid var(--acc);border-radius:12px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:7px 4px;min-height:56px}
+#secNowCode{font-size:19px;font-weight:900;color:var(--acc);letter-spacing:.5px}
+#secNowName{font-size:11px;color:var(--dim);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lvlQuick{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px}
+#lvlQuick button{flex:none;padding:9px 14px;border-radius:10px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--txt);font-weight:800;font-size:14px}
+#lvlQuick button.cur{background:var(--acc);color:#04211d;border-color:transparent}
+#capRow{display:flex;gap:8px}
+#capRow button{flex:1;padding:12px 4px;font-weight:800;font-size:13px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--txt);display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:var(--r)}
+#capRow button svg{width:21px;height:21px}
+#nbBtn{border-color:#7a5b2b !important;color:#f0c986 !important}
 #voiceBtn.recording{background:var(--rec);color:#fff;border-color:transparent;animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.75}}
 #nextSecBtn{background:rgba(74,127,212,.2);color:#9db8e8;border-color:#33507e}
@@ -192,6 +205,27 @@ main{flex:1;overflow:hidden;position:relative}
 .mediaRow{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;
   display:flex;gap:10px;align-items:center;font-size:13.5px}
 .mediaRow audio{height:36px;max-width:52vw}
+.dl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+  display:flex;align-items:center;gap:10px}
+.dl .desc{flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl .cnt{font-variant-numeric:tabular-nums;font-weight:900;font-size:16px}
+.dl.ok{border-color:#2e7d5b;background:rgba(63,182,168,.08)}
+.dl.ok .cnt{color:var(--acc)}
+.dl.over{border-color:#7a5b2b;background:rgba(224,165,63,.08)}
+.dl.over .cnt{color:var(--warn)}
+.dl .m{width:34px;height:34px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);
+  color:var(--txt);font-size:17px;font-weight:800;flex:none}
+#delivBanner{display:none;background:rgba(224,165,63,.15);border:1px solid var(--warn);color:#f0c986;
+  border-radius:var(--r);padding:10px 12px;font-size:13.5px;font-weight:700}
+#delivBanner.show{display:flex;justify-content:space-between;align-items:center}
+#linkSheet{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:none;align-items:flex-end}
+#linkSheet.show{display:flex}
+#linkSheetIn{background:var(--panel);width:100%;border-radius:20px 20px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto}
+#linkSheetIn h3{font-size:15px;margin-bottom:4px}
+#linkList{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+#linkList button{text-align:left;padding:12px;background:var(--panel2);border:1px solid var(--line);
+  color:var(--txt);font-weight:600;font-size:14px;border-radius:10px}
+#linkList button.extra{color:var(--warn)}
 
 /* settings */
 #setView{padding:14px;gap:14px}
@@ -236,17 +270,30 @@ main{flex:1;overflow:hidden;position:relative}
     <div id="scanBody">
       <div id="fileWarn"><b>Camera can't work from a downloaded file.</b><br>
         Open the app from its https:// address instead — Chrome never grants camera to opened files.</div>
+      <div id="delivBanner"><span>🚚 Delivery mode — scans count to the delivery</span>
+        <button style="background:var(--warn);color:#2b1e04;font-weight:800;padding:7px 12px;border-radius:9px" onclick="go('deliv')">Open</button></div>
 
       <div id="secCap">
-        <button onclick="secPhoto()">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3l-1.7 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.3L15 3H9z"/></svg>
-          Section photo</button>
-        <button id="voiceBtn">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V22h2v-3.1A7 7 0 0 0 19 12h-2z"/></svg>
-          <span id="voiceLbl">Hold: voice</span></button>
-        <button id="nextSecBtn" onclick="nextSection()">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l8 8-8 8V4zm10 0h2v16h-2z"/></svg>
-          Next section</button>
+        <div id="secNav">
+          <button class="nav" onclick="prevSection()">◀</button>
+          <div id="secNow" onclick="go('map')">
+            <div id="secNowCode">—</div>
+            <div id="secNowName"></div>
+          </div>
+          <button class="nav" onclick="nextSection()">▶</button>
+        </div>
+        <div id="lvlQuick"></div>
+        <div id="capRow">
+          <button onclick="secPhoto()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3l-1.7 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.3L15 3H9z"/></svg>
+            Section photo</button>
+          <button id="voiceBtn">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V22h2v-3.1A7 7 0 0 0 19 12h-2z"/></svg>
+            <span id="voiceLbl">Hold: voice</span></button>
+          <button id="nbBtn" onclick="noBarcode()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3l-1.7 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.3L15 3H9z"/></svg>
+            No barcode</button>
+        </div>
       </div>
       <div id="mediaStrip"></div>
 
@@ -318,6 +365,41 @@ main{flex:1;overflow:hidden;position:relative}
     <div id="stockList" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 
+  <!-- DELIVERY -->
+  <div class="view" id="delivView" style="padding:12px 14px 24px;gap:12px">
+    <div class="card" id="delivSetup">
+      <h3 style="font-size:15px;margin-bottom:6px">New delivery check</h3>
+      <div class="muted" style="margin-bottom:8px">Paste the delivery list — one item per line. Formats like
+        "12 x Coke 330ml", "Coke 330ml x12", "24 Walkers Cheese" all work (no number = 1).
+        Then scan every box/item as you unpack: the app ticks them off, flags shorts, overs and
+        extras (bonuses/promo), and remembers which barcode belongs to which item for next time.</div>
+      <input id="delivName" placeholder="Delivery name (e.g. Booker Tue)" style="width:100%;margin-bottom:8px">
+      <textarea id="delivPaste" placeholder="12 x Coca-Cola 330ml
+24 x Walkers Ready Salted
+6 x Red Bull 250ml" style="width:100%;height:130px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px;font-size:14px;font-family:inherit"></textarea>
+      <button class="setBtn" style="margin-top:8px;justify-content:center;background:var(--acc);color:#04211d" onclick="startDelivery()">Start checking ▶</button>
+    </div>
+    <div id="delivLive" style="display:none;flex-direction:column;gap:10px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3 style="font-size:15px" id="delivTitle">Delivery</h3>
+          <span class="muted" id="delivStats"></span>
+        </div>
+        <div class="muted" style="margin-top:4px">Scan on the <b>Scan</b> tab — while a delivery is open,
+          every scan counts here (not into shelf stock). Tap a line to +1 by hand.</div>
+      </div>
+      <div id="delivLines" style="display:flex;flex-direction:column;gap:7px"></div>
+      <div class="card" id="delivExtrasCard" style="display:none">
+        <h3 style="font-size:14px;color:var(--warn)">Extras / not on list (bonus? promo? misdelivery?)</h3>
+        <div id="delivExtras"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="setBtn" style="justify-content:center" onclick="finishDelivery()">Finish → report</button>
+        <button class="setBtn danger" style="justify-content:center;max-width:40%" onclick="cancelDelivery()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- SETTINGS -->
   <div class="view" id="setView">
     <div class="card">
@@ -331,6 +413,14 @@ main{flex:1;overflow:hidden;position:relative}
       </div>
     </div>
     <div class="card muted" id="statsCard"></div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:8px">Health</h3>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="setBtn" style="justify-content:center" onclick="restartCam()">Restart camera</button>
+        <button class="setBtn" style="justify-content:center;max-width:40%" onclick="errLog=[];kvSet('errLog',errLog);renderSettings();toast('Log cleared')">Clear log</button>
+      </div>
+      <div class="muted" id="errList" style="font-size:11.5px;line-height:1.5;font-family:monospace"></div>
+    </div>
     <div class="card muted">Layout: rev AQ (2026-08-09). Sections &amp; shelf levels are editable straight in the map sheet (+/− steppers) — edits persist on this phone and export with backups.</div>
   </div>
 </main>
@@ -342,6 +432,8 @@ main{flex:1;overflow:hidden;position:relative}
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 4l-6 2-6-2v16l6 2 6-2 6 2V6l-6-2zm0 2.2l4 1.3v11.3l-4-1.3V6.2zM9 8.2l4-1.3v11.3l-4 1.3V8.2zM5 6.5l2 .7v11.3l-2-.7V6.5z"/></svg>Map</button>
   <button data-v="stock" onclick="go('stock')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></svg>Stock</button>
+  <button data-v="deliv" onclick="go('deliv')" style="position:relative">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h11v10H3zm13 3h3l2.5 3.5V15H16zM6 19a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm11 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>Delivery<span id="delivDot" style="display:none;position:absolute;top:4px;right:22%;width:8px;height:8px;border-radius:50%;background:var(--warn)"></span></button>
   <button data-v="set" onclick="go('set')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4c0-.6-.1-1.1-.2-1.6l2-1.6-2-3.5-2.4 1a7.5 7.5 0 0 0-2.8-1.6L15.2 2h-4l-.4 2.7c-1 .3-2 .9-2.8 1.6l-2.4-1-2 3.5 2 1.6c-.1.5-.2 1-.2 1.6s.1 1.1.2 1.6l-2 1.6 2 3.5 2.4-1c.8.7 1.8 1.3 2.8 1.6l.4 2.7h4l.4-2.7c1-.3 2-.9 2.8-1.6l2.4 1 2-3.5-2-1.6c.1-.5.2-1 .2-1.6z"/></svg>More</button>
 </div>
@@ -373,6 +465,13 @@ main{flex:1;overflow:hidden;position:relative}
 </div>
 
 <div id="photoView" onclick="this.classList.remove('show')"><img id="photoViewImg"></div>
+<div id="linkSheet" onclick="if(event.target===this)this.classList.remove('show')">
+  <div id="linkSheetIn">
+    <h3>Which delivery item is this?</h3>
+    <div class="muted" id="linkSub"></div>
+    <div id="linkList"></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -500,9 +599,10 @@ const esc=s=>String(s??"").replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&am
 
 /* ============ NAV ============ */
 function go(v){ document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
-  $( {scan:"scanView",map:"mapView",stock:"stockView",set:"setView"}[v] ).classList.add("on");
+  $( {scan:"scanView",map:"mapView",stock:"stockView",deliv:"delivView",set:"setView"}[v] ).classList.add("on");
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   if(v==="stock") renderStock(); if(v==="map") refreshMapCounts(); if(v==="set") renderSettings();
+  if(v==="deliv") renderDelivery();
   if(v!=="map") hideSheet(); }
 
 /* ============ MAP ============ */
@@ -617,13 +717,18 @@ function setLoc(lvl){
   setTimeout(()=>{ hideSheet(); go("scan"); },380);
 }
 function hideSheet(){ $("sheet").classList.remove("show"); }
-function nextSection(){
+function moveSection(dir){
   if(!loc) return;
-  const f=fxById(loc.fx); let face=loc.face, sec=loc.sec+1;
+  const f=fxById(loc.fx); let face=loc.face, sec=loc.sec+dir;
   if(sec>faceSecs(f,face)){
     const fi=f.faces.findIndex(x=>x.k===face);
     if(fi<f.faces.length-1){ face=f.faces[fi+1].k; sec=1; }
     else { toast("End of "+f.id+" — pick next fixture on map",1); go("map"); return; }
+  }
+  if(sec<1){
+    const fi=f.faces.findIndex(x=>x.k===face);
+    if(fi>0){ face=f.faces[fi-1].k; sec=faceSecs(f,face); }
+    else { toast("Start of "+f.id,1); return; }
   }
   loc={fx:f.id, face, sec, lvl:null, code:mkCode(f.id,face,sec,0)};
   kvSet("loc",loc);
@@ -631,12 +736,57 @@ function nextSection(){
   buzz([15,30,15]); toast("→ "+loc.code);
   renderSecCap();
 }
+const nextSection=()=>moveSection(1);
+const prevSection=()=>moveSection(-1);
+function setLvlQuick(l){
+  if(!loc) return;
+  loc={...loc, lvl:l||null, code:mkCode(loc.fx,loc.face,loc.sec,l)};
+  kvSet("loc",loc);
+  $("locChipTxt").textContent=loc.code;
+  buzz(10); renderSecCap();
+}
+/* ---- no-barcode product: photo IS the identity ---- */
+async function noBarcode(){
+  if(!loc){ toast("Pick a location first",1); go("map"); return; }
+  const code="NB-"+Date.now().toString(36).toUpperCase();
+  current={barcode:code, product:{barcode:code,name:"",brand:"",size:"",img:"",nb:1}};
+  qty=1; photos=[];
+  const v=$("cam");
+  if(stream && v.readyState>=2 && !paused){
+    const c=document.createElement("canvas");
+    const s=Math.min(1,900/v.videoWidth);
+    c.width=v.videoWidth*s; c.height=v.videoHeight*s;
+    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+    const d=c.toDataURL("image/jpeg",.72);
+    photos.push(d); current.product.img=d;
+    finishNB();
+  } else {
+    $("photoInput").onchange=async e=>{ const f=e.target.files[0];
+      if(f){ const d=await shrink(f,900); photos.push(d); current.product.img=d; }
+      e.target.value=""; finishNB(); };
+    $("photoInput").click();
+  }
+}
+function finishNB(){
+  buzz([30,40,30]); beep(1);
+  renderPhotos(); showCard();
+  $("prodMeta").textContent="No-barcode item — photo attached. Name optional:";
+  $("nameEditRow").classList.add("show");
+  toast("📷 no-barcode item ready — set qty & save");
+}
 
 /* ============ SECTION CAPTURE (photo + voice) ============ */
 function sectionBase(){ if(!loc) return null; return mkCode(loc.fx,loc.face,loc.sec,0); }
 async function renderSecCap(){
   $("secCap").classList.toggle("show",!!loc);
   if(!loc){ $("mediaStrip").classList.remove("show"); return; }
+  const f=fxById(loc.fx);
+  $("secNowCode").textContent=loc.code;
+  $("secNowName").textContent=f? f.nm:"";
+  const n=f? lvlsOf(f,loc.face,loc.sec):0;
+  let lq=`<button class="${!loc.lvl?'cur':''}" onclick="setLvlQuick(0)">whole</button>`;
+  for(let l=1;l<=n;l++) lq+=`<button class="${loc.lvl===l?'cur':''}" onclick="setLvlQuick(${l})">L${l}</button>`;
+  $("lvlQuick").innerHTML=lq;
   mediaCache = await idbAll("media");
   const base=sectionBase();
   const items=mediaCache.filter(m=>m.loc===base||m.loc.startsWith(base+".L"));
@@ -709,6 +859,7 @@ async function startScanner(){
       width:{ideal:1280},height:{ideal:720}}});
   }catch(e){ $("camErr").textContent="Camera blocked: "+e.message; return; }
   const v=$("cam"); v.srcObject=stream; await v.play();
+  watchStream();
   $("camOff").style.display="none"; $("reticle").style.display="block";
   $("pauseBtn").style.display="flex";
   const track=stream.getVideoTracks()[0];
@@ -745,6 +896,7 @@ function manualGo(){ const v=$("manualCode").value.trim(); if(!v) return;
 async function onScan(code){
   beep(1); buzz([30,40,30]);
   const hf=$("hitFlash"); hf.style.opacity=1; setTimeout(()=>hf.style.opacity=0,120);
+  if(deliv && deliv.active){ delivScan(code); return; }
   if(current && current.barcode===code && $("prodCard").classList.contains("show")){
     bumpQty(1); toast("+1 → "+qty); return;
   }
@@ -899,12 +1051,157 @@ async function delEntry(id){
   await idbDel("entries",id); renderStock(); toast("Deleted");
 }
 
+/* ============ DELIVERY CHECK ============ */
+let deliv=null, delivLinks={};   // delivLinks: barcode -> canonical line desc (learned across deliveries)
+function parseDelivLine(s){
+  s=s.trim(); if(!s) return null;
+  let m=s.match(/^(\d+)\s*[x×*]?\s+(.+)$/i);
+  if(m) return {desc:m[2].trim(), exp:+m[1], got:0};
+  m=s.match(/^(.+?)\s*[x×*]\s*(\d+)$/i);
+  if(m) return {desc:m[1].trim(), exp:+m[2], got:0};
+  return {desc:s, exp:1, got:0};
+}
+async function startDelivery(){
+  const lines=$("delivPaste").value.split("\n").map(parseDelivLine).filter(Boolean);
+  if(!lines.length){ toast("Paste the delivery list first",1); return; }
+  deliv={active:1, name:$("delivName").value.trim()||("Delivery "+new Date().toLocaleDateString("en-GB")),
+    started:Date.now(), lines, extras:{}, links:{}};
+  await kvSet("deliv",deliv);
+  buzz(20); toast("Delivery mode ON — go scan boxes");
+  renderDelivery(); go("scan");
+}
+function delivStatus(l){ return l.got===l.exp?"ok":(l.got>l.exp?"over":""); }
+async function delivScan(code){
+  // known link (this delivery, learned history, or product-name auto-match)?
+  let idx = deliv.links[code];
+  if(idx===undefined && delivLinks[code]!==undefined){
+    idx = deliv.lines.findIndex(l=>l.desc.toLowerCase()===String(delivLinks[code]).toLowerCase());
+    if(idx<0) idx=undefined;
+  }
+  if(idx===undefined){
+    const p=await idbGet("products",code);
+    if(p && p.name){
+      const nm=p.name.toLowerCase();
+      const hits=deliv.lines.map((l,i)=>({i,s:l.desc.toLowerCase()}))
+        .filter(x=>x.s.includes(nm)||nm.includes(x.s));
+      if(hits.length===1) idx=hits[0].i;
+    }
+  }
+  if(idx===undefined){ openLinkSheet(code); return; }
+  bumpDeliv(idx,1,code);
+}
+async function bumpDeliv(idx,d,code){
+  const l=deliv.lines[idx]; if(!l) return;
+  l.got=Math.max(0,l.got+d);
+  if(code){ deliv.links[code]=idx; delivLinks[code]=l.desc; kvSet("delivLinks",delivLinks); }
+  await kvSet("deliv",deliv);
+  const st=delivStatus(l);
+  buzz(st==="over"?[40,40,40]:15);
+  toast(`${l.got}/${l.exp} ${l.desc.slice(0,26)}${st==="over"?" — OVER!":st==="ok"?" ✓":""}`,st==="over");
+  renderDelivery();
+}
+async function bumpExtra(code,d){
+  deliv.extras[code]=Math.max(0,(deliv.extras[code]||0)+d);
+  if(!deliv.extras[code]) delete deliv.extras[code];
+  await kvSet("deliv",deliv); renderDelivery();
+}
+let pendingLink=null;
+async function openLinkSheet(code){
+  pendingLink=code;
+  const p=await idbGet("products",code);
+  $("linkSub").textContent=(p&&p.name? p.name+" · ":"")+code;
+  $("linkList").innerHTML=deliv.lines.map((l,i)=>
+    `<button onclick="linkTo(${i})">${esc(l.desc)} <span class="muted">(${l.got}/${l.exp})</span></button>`).join("")
+    +`<button class="extra" onclick="linkExtra()">➕ Not on the list — extra / bonus / promo</button>`;
+  $("linkSheet").classList.add("show"); buzz(20);
+}
+async function linkTo(i){ $("linkSheet").classList.remove("show");
+  if(pendingLink!=null) bumpDeliv(i,1,pendingLink); pendingLink=null; }
+async function linkExtra(){ $("linkSheet").classList.remove("show");
+  if(pendingLink!=null){ await bumpExtra(pendingLink,1); toast("Logged as EXTRA",1); }
+  pendingLink=null; }
+async function renderDelivery(){
+  const live=deliv && deliv.active;
+  $("delivSetup").style.display=live?"none":"block";
+  $("delivLive").style.display=live?"flex":"none";
+  $("delivDot").style.display=live?"block":"none";
+  $("delivBanner").classList.toggle("show",!!live);
+  if(!live) return;
+  $("delivTitle").textContent=deliv.name;
+  const done=deliv.lines.filter(l=>l.got>=l.exp).length;
+  const gotT=deliv.lines.reduce((a,b)=>a+b.got,0), expT=deliv.lines.reduce((a,b)=>a+b.exp,0);
+  $("delivStats").textContent=`${done}/${deliv.lines.length} lines · ${gotT}/${expT} pcs`;
+  let prods={}; (await idbAll("products")).forEach(p=>prods[p.barcode]=p);
+  $("delivLines").innerHTML=deliv.lines.map((l,i)=>
+    `<div class="dl ${delivStatus(l)}" onclick="bumpDeliv(${i},1)">
+       <div class="desc">${esc(l.desc)}</div>
+       <button class="m" onclick="event.stopPropagation();bumpDeliv(${i},-1)">−</button>
+       <span class="cnt">${l.got}/${l.exp}</span>
+     </div>`).join("");
+  const ex=Object.entries(deliv.extras);
+  $("delivExtrasCard").style.display=ex.length?"block":"none";
+  $("delivExtras").innerHTML=ex.map(([c,q])=>{
+    const p=prods[c]||{};
+    return `<div class="dl over" style="margin-top:7px">
+      <div class="desc">${esc(p.name||c)}</div>
+      <button class="m" onclick="bumpExtra('${c}',-1)">−</button>
+      <span class="cnt">${q}</span>
+      <button class="m" onclick="bumpExtra('${c}',1)">+</button></div>`;}).join("");
+}
+async function finishDelivery(){
+  const prods={}; (await idbAll("products")).forEach(p=>prods[p.barcode]=p);
+  const rows=[["item","expected","received","diff","status"]];
+  deliv.lines.forEach(l=>{
+    const d=l.got-l.exp;
+    rows.push([l.desc,l.exp,l.got,d, d===0?"OK":(d<0?"SHORT "+(-d):"OVER +"+d)]);
+  });
+  Object.entries(deliv.extras).forEach(([c,q])=>
+    rows.push([(prods[c]&&prods[c].name)||c,0,q,q,"EXTRA (bonus/promo/misdelivery?)"]));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  dl(`delivery-${deliv.name.replace(/[^a-z0-9]+/gi,"-")}.csv`, new Blob(["﻿"+csv],{type:"text/csv"}));
+  const short=deliv.lines.filter(l=>l.got<l.exp).length,
+        over=deliv.lines.filter(l=>l.got>l.exp).length,
+        exN=Object.keys(deliv.extras).length;
+  toast(`Report saved — ${short} short · ${over} over · ${exN} extras`);
+  deliv={active:0}; await kvSet("deliv",deliv); renderDelivery();
+}
+async function cancelDelivery(){
+  if(!confirm("Cancel this delivery check? Counts will be lost.")) return;
+  deliv={active:0}; await kvSet("deliv",deliv); renderDelivery(); toast("Delivery cancelled");
+}
+
+/* ============ ERROR LOG + SELF-HEALING ============ */
+let errLog=[];
+function logErr(msg){
+  errLog.unshift(new Date().toISOString().slice(11,19)+" "+String(msg).slice(0,180));
+  errLog=errLog.slice(0,40); kvSet("errLog",errLog);
+}
+window.addEventListener("error",e=>{ logErr(e.message); toast("⚠ recovered: "+String(e.message).slice(0,40),1); });
+window.addEventListener("unhandledrejection",e=>{ logErr(e.reason); });
+function watchStream(){
+  if(!stream) return;
+  const t=stream.getVideoTracks()[0]; if(!t) return;
+  t.onended=()=>{ logErr("camera track ended — restarting");
+    toast("Camera dropped — restarting…",1);
+    stream=null; setTimeout(()=>startScanner(),800); };
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible" && stream){
+    const t=stream.getVideoTracks()[0];
+    if(!t || t.readyState==="ended"){ stream=null; startScanner(); }
+    else $("cam").play().catch(()=>{});
+  }
+});
+async function restartCam(){ try{ if(stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+  stream=null; await startScanner(); toast("Camera restarted"); }
+
 /* ============ SETTINGS ============ */
 async function renderSettings(){
   const e=await idbAll("entries"), p=await idbAll("products"), m=await idbAll("media");
   const pcs=e.reduce((a,b)=>a+b.qty,0);
   const phc=e.reduce((a,b)=>a+((b.photos||[]).length),0)+m.filter(x=>x.kind==="photo").length;
   $("statsCard").textContent=`${p.length} products · ${e.length} stock lines · ${pcs} pcs · ${phc} photos · ${m.filter(x=>x.kind==="voice").length} voice notes · stored offline in this browser`;
+  $("errList").innerHTML=errLog.length? errLog.map(esc).join("<br>") : "No errors logged ✓";
 }
 
 /* ============ EXPORT / IMPORT ============ */
@@ -954,6 +1251,10 @@ async function wipeAll(){
 (async function(){
   await openDB();
   ovSecs=(await kvGet("ovSecs"))||{}; ovLvls=(await kvGet("ovLvls"))||{};
+  errLog=(await kvGet("errLog"))||[];
+  delivLinks=(await kvGet("delivLinks"))||{};
+  deliv=(await kvGet("deliv"))||null;
+  renderDelivery();
   const savedLoc=await kvGet("loc");
   if(savedLoc && savedLoc.code && fxById(savedLoc.fx)){
     loc=savedLoc; $("locChip").classList.remove("none"); $("locChipTxt").textContent=loc.code;
