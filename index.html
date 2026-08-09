@@ -9,7 +9,7 @@
 :root{
   --bg:#0d1117; --panel:#161b22; --panel2:#1f2630; --line:#2d3644;
   --txt:#e6edf3; --dim:#8b98a8; --acc:#3fb6a8; --acc2:#4a7fd4; --warn:#e0a53f; --bad:#e05f5f;
-  --r:14px;
+  --rec:#e05f5f; --r:14px;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
@@ -21,17 +21,16 @@ input,select{font-family:inherit;background:var(--panel2);border:1px solid var(-
   color:var(--txt);border-radius:10px;padding:10px 12px;font-size:16px;}
 input:focus{outline:2px solid var(--acc);border-color:transparent}
 
-/* ---------- top bar ---------- */
-#top{display:flex;align-items:center;gap:10px;padding:10px 14px calc(6px);
+#top{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;
   background:var(--panel);border-bottom:1px solid var(--line);}
 #top .title{font-weight:800;font-size:17px;letter-spacing:.3px}
 #locChip{margin-left:auto;background:var(--acc);color:#04211d;font-weight:800;
-  padding:9px 14px;border-radius:999px;font-size:15px;display:flex;gap:7px;align-items:center;
-  box-shadow:0 2px 10px rgba(63,182,168,.35)}
+  padding:9px 14px;border-radius:999px;font-size:14px;display:flex;gap:7px;align-items:center;
+  box-shadow:0 2px 10px rgba(63,182,168,.35);max-width:62vw}
 #locChip.none{background:var(--warn);color:#2b1e04}
-#locChip svg{width:15px;height:15px}
+#locChip svg{width:15px;height:15px;flex:none}
+#locChipTxt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ---------- tabs ---------- */
 #tabs{display:flex;background:var(--panel);border-top:1px solid var(--line);
   padding:4px 8px calc(8px + env(safe-area-inset-bottom));}
 #tabs button{flex:1;background:none;color:var(--dim);padding:9px 4px 7px;border-radius:12px;
@@ -44,8 +43,8 @@ main{flex:1;overflow:hidden;position:relative}
   -webkit-overflow-scrolling:touch}
 .view.on{display:flex}
 
-/* ---------- scan view ---------- */
-#camWrap{position:relative;background:#000;flex:0 0 42vh;overflow:hidden}
+/* scan */
+#camWrap{position:relative;background:#000;flex:0 0 38vh;overflow:hidden}
 #cam{width:100%;height:100%;object-fit:cover}
 #reticle{position:absolute;left:12%;right:12%;top:26%;bottom:26%;border-radius:18px;
   border:2.5px solid rgba(63,182,168,.9);box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
@@ -62,11 +61,32 @@ main{flex:1;overflow:hidden;position:relative}
 #hitFlash{position:absolute;inset:0;background:rgba(63,182,168,.4);opacity:0;pointer-events:none;transition:opacity .35s}
 
 #scanBody{flex:1;padding:12px 14px 20px;display:flex;flex-direction:column;gap:12px}
+#fileWarn{display:none;background:rgba(224,165,63,.14);border:1px solid var(--warn);color:#f0c986;
+  border-radius:var(--r);padding:12px;font-size:13.5px;line-height:1.45}
 #manualRow{display:flex;gap:8px}
 #manualRow input{flex:1;font-variant-numeric:tabular-nums}
 #manualRow button{background:var(--panel2);color:var(--txt);padding:0 18px;font-weight:700;border:1px solid var(--line)}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+
+/* section capture bar */
+#secCap{display:none;gap:8px}
+#secCap.show{display:flex}
+#secCap button{flex:1;padding:13px 4px;font-weight:800;font-size:13.5px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--txt);display:flex;flex-direction:column;align-items:center;gap:3px}
+#secCap button svg{width:21px;height:21px}
+#voiceBtn.recording{background:var(--rec);color:#fff;border-color:transparent;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.75}}
+#nextSecBtn{background:rgba(74,127,212,.2);color:#9db8e8;border-color:#33507e}
+#mediaStrip{display:none;gap:8px;overflow-x:auto;padding:2px 0}
+#mediaStrip.show{display:flex}
+.mThumb{position:relative;flex:none}
+.mThumb img{width:56px;height:56px;object-fit:cover;border-radius:9px;border:1px solid var(--line)}
+.mThumb .aud{width:56px;height:56px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);
+  display:flex;align-items:center;justify-content:center;font-size:22px}
+.mThumb .del{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;
+  background:var(--bad);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+
 #prodCard{display:none}
 #prodCard.show{display:block;animation:pop .22s ease}
 @keyframes pop{from{transform:scale(.96);opacity:.4}to{transform:scale(1);opacity:1}}
@@ -78,7 +98,6 @@ main{flex:1;overflow:hidden;position:relative}
 #nameEditRow{display:none;margin-top:8px;gap:8px}
 #nameEditRow.show{display:flex}
 #nameEditRow input{flex:1}
-
 #qtyRow{display:flex;align-items:center;gap:10px;margin-top:14px}
 .qbtn{width:58px;height:58px;border-radius:16px;background:var(--panel2);color:var(--txt);
   font-size:28px;font-weight:800;border:1px solid var(--line)}
@@ -99,8 +118,8 @@ main{flex:1;overflow:hidden;position:relative}
 
 #toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
   background:var(--acc);color:#04211d;font-weight:800;padding:11px 20px;border-radius:999px;opacity:0;
-  transition:all .25s;pointer-events:none;z-index:99;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.4)}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  transition:all .25s;pointer-events:none;z-index:99;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.4);max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+#toast.show{opacity:1}
 #toast.warn{background:var(--warn);color:#2b1e04}
 
 #sessionCard .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);
@@ -108,43 +127,53 @@ main{flex:1;overflow:hidden;position:relative}
 #sessionCard .row:last-child{border:none}
 .muted{color:var(--dim);font-size:12.5px}
 
-/* ---------- map view ---------- */
+/* map */
 #mapView{padding:0}
 #mapHead{padding:12px 14px 6px}
-#mapHead .muted{margin-top:2px}
 #mapBox{flex:1;min-height:0;padding:6px 8px 10px}
 #shopMap{width:100%;height:100%;touch-action:manipulation}
-.fx{stroke-width:1.5;cursor:pointer;transition:filter .15s}
-.fx.sel{stroke:#fff !important;stroke-width:3}
-.fxlbl{pointer-events:none;font-weight:700;fill:#e6edf3;font-family:system-ui}
-.fxlbl.dark{fill:#0d1117}
+.fx{stroke-width:1.5;cursor:pointer}
+.fx.sel{stroke:#fff !important;stroke-width:4}
+.fxlbl{pointer-events:none;font-weight:700;fill:#1a2330;font-family:system-ui}
+.fxbadge{pointer-events:none;font-weight:700;fill:#8b98a8;font-family:system-ui}
+
 #sheet{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-radius:20px 20px 0 0;
   border-top:1px solid var(--line);padding:16px 16px calc(18px + env(safe-area-inset-bottom));
   transform:translateY(105%);transition:transform .28s cubic-bezier(.3,1.1,.4,1);z-index:60;
-  box-shadow:0 -8px 30px rgba(0,0,0,.5);max-height:70vh;overflow-y:auto}
+  box-shadow:0 -8px 30px rgba(0,0,0,.5);max-height:74vh;overflow-y:auto}
 #sheet.show{transform:translateY(0)}
 #sheetTitle{font-size:18px;font-weight:900}
 #sheetSub{color:var(--dim);font-size:13px;margin-top:2px}
-.secGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:9px;margin-top:14px}
-.secGrid button{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
-  padding:16px 0;font-size:17px;font-weight:800;border-radius:12px}
-.secGrid button.cur{background:var(--acc);color:#04211d;border-color:transparent}
-.secGrid button .cnt{display:block;font-size:10.5px;font-weight:600;color:var(--dim);margin-top:2px}
-.secGrid button.cur .cnt{color:#04211d}
-.sideTabs{display:flex;gap:8px;margin-top:12px}
-.sideTabs button{flex:1;padding:10px;background:var(--panel2);border:1px solid var(--line);
-  color:var(--dim);font-weight:800;border-radius:10px}
-.sideTabs button.on{background:var(--acc2);color:#fff;border-color:transparent}
 #secStepr{display:flex;align-items:center;gap:6px;flex:none}
 #secStepr button{width:42px;height:42px;border-radius:12px;background:var(--panel2);
   border:1px solid var(--line);color:var(--txt);font-size:22px;font-weight:800}
 #secStepr span{display:flex;flex-direction:column;align-items:center;min-width:38px;line-height:1.1}
 #secStepr b{font-size:18px}
 #secStepr small{color:var(--dim);font-size:10px}
-#fileWarn{display:none;background:rgba(224,165,63,.14);border:1px solid var(--warn);color:#f0c986;
-  border-radius:var(--r);padding:12px;font-size:13.5px;line-height:1.45}
+.sideTabs{display:flex;gap:8px;margin-top:12px}
+.sideTabs button{flex:1;padding:10px;background:var(--panel2);border:1px solid var(--line);
+  color:var(--dim);font-weight:800;border-radius:10px}
+.sideTabs button.on{background:var(--acc2);color:#fff;border-color:transparent}
+.secGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:9px;margin-top:14px}
+.secGrid button{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+  padding:13px 0;font-size:16px;font-weight:800;border-radius:12px}
+.secGrid button.cur{background:rgba(74,127,212,.25);border-color:var(--acc2)}
+.secGrid button .cnt{display:block;font-size:10px;font-weight:600;color:var(--dim);margin-top:2px}
+#lvlBox{display:none;margin-top:14px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+#lvlBox.show{display:block}
+#lvlHead{display:flex;align-items:center;justify-content:space-between}
+#lvlHead .t{font-weight:800;font-size:14px}
+#lvlStepr{display:flex;gap:6px;align-items:center}
+#lvlStepr button{width:34px;height:34px;border-radius:9px;background:var(--panel);border:1px solid var(--line);
+  color:var(--txt);font-size:18px;font-weight:800}
+#lvlStepr b{min-width:22px;text-align:center}
+#lvlChips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#lvlChips button{padding:12px 16px;border-radius:10px;background:var(--panel);border:1px solid var(--line);
+  color:var(--txt);font-weight:800;font-size:15px}
+#lvlChips button.whole{color:var(--acc)}
+#lvlChips button.cur{background:var(--acc);color:#04211d;border-color:transparent}
 
-/* ---------- stock view ---------- */
+/* stock */
 #stockView{padding:12px 14px 24px;gap:10px}
 #stockTools{display:flex;gap:8px}
 #stockSearch{flex:1}
@@ -160,20 +189,16 @@ main{flex:1;overflow:hidden;position:relative}
 .si-qty{font-size:21px;font-weight:900;font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
 #stockSummary{color:var(--dim);font-size:13px;padding:2px 2px}
 .si-del{background:none;color:var(--bad);font-size:20px;padding:6px}
+.mediaRow{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;
+  display:flex;gap:10px;align-items:center;font-size:13.5px}
+.mediaRow audio{height:36px;max-width:52vw}
 
-/* ---------- settings ---------- */
+/* settings */
 #setView{padding:14px;gap:14px}
 .setBtn{width:100%;padding:15px;background:var(--panel2);border:1px solid var(--line);
   color:var(--txt);font-weight:700;font-size:15px;text-align:left;display:flex;gap:12px;align-items:center}
 .setBtn svg{width:20px;height:20px;color:var(--acc)}
 .setBtn.danger{color:var(--bad)} .setBtn.danger svg{color:var(--bad)}
-.secEditRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
-.secEditRow:last-child{border:none}
-.secEditRow .nm{flex:1;font-size:14px}
-.secEditRow input{width:64px;text-align:center;padding:8px}
-dialog{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:16px;
-  padding:18px;max-width:92vw}
-dialog::backdrop{background:rgba(0,0,0,.6)}
 #photoView{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:80;display:none;
   align-items:center;justify-content:center}
 #photoView.show{display:flex}
@@ -183,7 +208,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <body>
 
 <div id="top">
-  <div class="title">Hassan Stock</div>
+  <div class="title">Hassan Stock <span class="muted" style="font-size:11px">revAQ</span></div>
   <button id="locChip" class="none" onclick="go('map')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
     <span id="locChipTxt">Pick location</span>
@@ -191,7 +216,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 </div>
 
 <main>
-  <!-- ============ SCAN ============ -->
+  <!-- SCAN -->
   <div class="view on" id="scanView">
     <div id="camWrap">
       <video id="cam" playsinline muted></video>
@@ -210,10 +235,21 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
     <div id="scanBody">
       <div id="fileWarn"><b>Camera can't work from a downloaded file.</b><br>
-        Chrome on Android only allows the camera on a real <b>https://</b> page (or localhost) — it will
-        never even show the permission popup for an opened file, and the page won't appear in site
-        settings. Host this file once (free) and open that address instead; the app still works fully
-        offline after that. Manual barcode entry below works meanwhile.</div>
+        Open the app from its https:// address instead — Chrome never grants camera to opened files.</div>
+
+      <div id="secCap">
+        <button onclick="secPhoto()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM9 3l-1.7 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.3L15 3H9z"/></svg>
+          Section photo</button>
+        <button id="voiceBtn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V22h2v-3.1A7 7 0 0 0 19 12h-2z"/></svg>
+          <span id="voiceLbl">Hold: voice</span></button>
+        <button id="nextSecBtn" onclick="nextSection()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l8 8-8 8V4zm10 0h2v16h-2z"/></svg>
+          Next section</button>
+      </div>
+      <div id="mediaStrip"></div>
+
       <div id="manualRow">
         <input id="manualCode" inputmode="numeric" placeholder="Type barcode…" enterkeyhint="go">
         <button onclick="manualGo()">Go</button>
@@ -263,43 +299,39 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
     <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
   </div>
 
-  <!-- ============ MAP ============ -->
+  <!-- MAP -->
   <div class="view" id="mapView">
     <div id="mapHead">
-      <h2 style="font-size:17px">Shop map — tap a fixture</h2>
-      <div class="muted">Then pick side &amp; section. Location sticks while you scan.</div>
+      <h2 style="font-size:17px">Shop map — rev AQ · tap a fixture</h2>
+      <div class="muted">Face → section → shelf level (L1 = bottom). Address like G2.N.3.L2.</div>
     </div>
-    <div id="mapBox"><svg id="shopMap" viewBox="230 60 1400 970" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div id="mapBox"><svg id="shopMap" viewBox="-14 126 1832 1032" preserveAspectRatio="xMidYMid meet"></svg></div>
   </div>
 
-  <!-- ============ STOCK ============ -->
+  <!-- STOCK -->
   <div class="view" id="stockView">
     <div id="stockTools">
-      <input id="stockSearch" placeholder="Search name / barcode…" oninput="renderStock()">
+      <input id="stockSearch" placeholder="Search name / barcode / location…" oninput="renderStock()">
       <select id="stockFilter" onchange="renderStock()"><option value="">All locations</option></select>
     </div>
     <div id="stockSummary"></div>
     <div id="stockList" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 
-  <!-- ============ SETTINGS ============ -->
+  <!-- SETTINGS -->
   <div class="view" id="setView">
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:10px">Data</h3>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="setBtn" onclick="exportJSON()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17.4 7.3 11.7l1.4-1.4L12 13.6V3zM5 19h14v2H5z"/></svg>Export full backup (JSON + photos)</button>
+        <button class="setBtn" onclick="exportJSON()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17.4 7.3 11.7l1.4-1.4L12 13.6V3zM5 19h14v2H5z"/></svg>Export FULL backup / AI pack (JSON: stock + photos + voice)</button>
         <button class="setBtn" onclick="exportCSV()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4zm0 5h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>Export CSV (spreadsheet)</button>
-        <button class="setBtn" onclick="document.getElementById('importFile').click()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.4V6.8L8.7 10 7.3 8.7 12 4l4.7 4.7L15.3 10 12 6.8zM5 19h14v2H5z"/></svg>Import backup</button>
+        <button class="setBtn" onclick="document.getElementById('importFile').click()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.4V6.8L8.7 10 7.3 8.7 12 4l4.7 4.7L15.3 10 12 6.8zM5 19h14v2H5z"/></svg>Import backup / product seed</button>
         <input type="file" id="importFile" accept=".json" hidden onchange="importJSON(this.files[0])">
         <button class="setBtn danger" onclick="wipeAll()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2zM4 5h16v2H4z"/></svg>Erase all data</button>
       </div>
     </div>
-    <div class="card">
-      <h3 style="font-size:15px;margin-bottom:4px">Sections per fixture</h3>
-      <div class="muted" style="margin-bottom:8px">Bays estimated from measured lengths (~100cm each). Adjust to match reality.</div>
-      <div id="secEditor"></div>
-    </div>
     <div class="card muted" id="statsCard"></div>
+    <div class="card muted">Layout: rev AQ (2026-08-09). Sections &amp; shelf levels are editable straight in the map sheet (+/− steppers) — edits persist on this phone and export with backups.</div>
   </div>
 </main>
 
@@ -314,7 +346,6 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4c0-.6-.1-1.1-.2-1.6l2-1.6-2-3.5-2.4 1a7.5 7.5 0 0 0-2.8-1.6L15.2 2h-4l-.4 2.7c-1 .3-2 .9-2.8 1.6l-2.4-1-2 3.5 2 1.6c-.1.5-.2 1-.2 1.6s.1 1.1.2 1.6l-2 1.6 2 3.5 2.4-1c.8.7 1.8 1.3 2.8 1.6l.4 2.7h4l.4-2.7c1-.3 2-.9 2.8-1.6l2.4 1 2-3.5-2-1.6c.1-.5.2-1 .2-1.6z"/></svg>More</button>
 </div>
 
-<!-- location bottom sheet -->
 <div id="sheet">
   <div style="display:flex;align-items:center;gap:10px">
     <div style="flex:1;min-width:0">
@@ -329,6 +360,16 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
   </div>
   <div class="sideTabs" id="sideTabs" style="display:none"></div>
   <div class="secGrid" id="secGrid"></div>
+  <div id="lvlBox">
+    <div id="lvlHead">
+      <span class="t" id="lvlTitle"></span>
+      <div id="lvlStepr">
+        <button onclick="stepLvls(-1)">−</button><b id="lvlSteprN">0</b><button onclick="stepLvls(1)">+</button>
+        <small class="muted">shelves</small>
+      </div>
+    </div>
+    <div id="lvlChips"></div>
+  </div>
 </div>
 
 <div id="photoView" onclick="this.classList.remove('show')"><img id="photoViewImg"></div>
@@ -336,42 +377,87 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <script>
 "use strict";
-/* ================= FIXTURES (from claude/shop-floor-map-final.md rev 6) ================= */
-const CMPX = 0.98;
-const FIXTURES = [
- {id:"G1", name:"Island 1 · Shelves", x:729,y:241,w:693,h:113, color:"#4a7fd4", sides:["A (front)","B (back)"], stock:1},
- {id:"N3n",name:"Island 1 · Freezers",x:923,y:247,w:504,h:110, color:"#5bc0de", sides:["A (front)","B (back)"], stock:1, dy:0, overlay:1},
- {id:"G2", name:"Island 2 · Shelves", x:621,y:453,w:663,h:143, color:"#4a7fd4", sides:["A (front)","B (back)"], stock:1},
- {id:"G3", name:"Island 3 · Shelves", x:525,y:667,w:558,h:128, color:"#4a7fd4", sides:["A (front)","B (back)"], stock:1},
- {id:"W1", name:"Top-wall Fridges",   x:626,y:120,w:965,h:57,  color:"#2fa3a0", stock:1},
- {id:"F6", name:"Right-wall Fridge",  x:1536,y:158,w:73,h:261, color:"#2fa3a0", vert:1, stock:1},
- {id:"N3", name:"Bottom Fridge Run",  x:397,y:868,w:506,h:130, color:"#2fa3a0", stock:1},
- {id:"W2", name:"Bottom Shelves",     x:908,y:907,w:353,h:92,  color:"#4a7fd4", stock:1},
- {id:"N2", name:"Backroom-wall Strip",x:1283,y:457,w:273,h:48, color:"#4a7fd4", stock:1},
- {id:"F1", name:"Alcohol (behind till)",x:375,y:92,w:244,h:53, color:"#b06fc4", stock:1},
- {id:"F2", name:"Cashier Shelves",    x:313,y:94,w:67,h:173,   color:"#b06fc4", vert:1, stock:1},
- {id:"F10",name:"Sweets + Till",      x:382,y:185,w:221,h:91,  color:"#b06fc4", stock:1},
- {id:"F12",name:"Sweets Column",      x:466,y:485,w:58,h:56,   color:"#b06fc4", stock:1, secs:1},
- {id:"N4", name:"Red Bull Fridge 1",  x:327,y:362,w:66,h:37,   color:"#e0a53f", stock:1, secs:1},
- {id:"N5", name:"Red Bull Fridge 2",  x:318,y:314,w:74,h:46,   color:"#e0a53f", stock:1, secs:1},
- {id:"N6", name:"Red Bull Fridge 3",  x:315,y:270,w:76,h:43,   color:"#e0a53f", stock:1, secs:1},
- {id:"US1",name:"End-cap Island 3",   x:486,y:712,w:123,h:49,  color:"#7d93b8", rot:90, stock:1, secs:1},
- {id:"US2",name:"End-cap Island 2",   x:589,y:493,w:129,h:62,  color:"#7d93b8", rot:90, stock:1, secs:1},
- {id:"US3",name:"End-cap Island 1",   x:701,y:271,w:113,h:50,  color:"#7d93b8", rot:90, stock:1, secs:1},
- {id:"F8", name:"BACKROOM",           x:1275,y:600,w:312,h:396,color:"#39424f", stock:1, secs:4},
+/* ============ LAYOUT — rev AQ (2026-08-09), from claude/shop-map-revAQ.json ============ */
+/* faces: [{k,secs}] — k "" = no face. lv = default levels; lvMap = per-key overrides (key = face+sec or sec). */
+const FX = [
+ {id:"G1", nm:"Gondola 1 (secs 2–5 = freezers)", x:432,y:797,w:790,h:124, c:"#a5d6a7",
+   faces:[{k:"N",secs:5},{k:"S",secs:5},{k:"CAP",secs:1}], lv:8,
+   lvMap:{N1:8,S1:8,N2:4,N3:4,N4:4,N5:4,S2:3,S3:3,S4:3,S5:3,CAP1:7}, capSide:"e"},
+ {id:"G2", nm:"Gondola 2", x:600,y:533,w:739,h:166, c:"#a5d6a7",
+   faces:[{k:"N",secs:5},{k:"S",secs:5},{k:"CAP",secs:1}], lv:7,
+   lvMap:{S1:6,S2:6,CAP1:8}, capSide:"e"},
+ {id:"G3", nm:"Gondola 3", x:809,y:308,w:618,h:148, c:"#a5d6a7",
+   faces:[{k:"N",secs:4},{k:"S",secs:4},{k:"CAP",secs:1}], lv:6, lvMap:{CAP1:5}, capSide:"e"},
+ {id:"G2x", nm:"Rear extension (of G2 line)", x:234,y:633,w:339,h:66, c:"#a5d6a7",
+   faces:[{k:"",secs:3}], lv:7, lvMap:{3:6}},
+ {id:"ST1", nm:"Stock shelves (mirror of G2x)", x:285,y:564,w:322,h:66, c:"#c8e6c9",
+   faces:[{k:"",secs:2}], lv:7},
+ {id:"W1", nm:"Fridge bank (window wall)", x:327,y:1046,w:1035,h:90, c:"#b2ebf2",
+   faces:[{k:"",secs:8}], lv:5},
+ {id:"N3", nm:"Fridge run (top wall)", x:1022,y:139,w:629,h:92, c:"#b2ebf2",
+   faces:[{k:"",secs:5}], lv:5, lvMap:{5:4}},
+ {id:"RR", nm:"Fridge — runs to back wall", x:210,y:741,w:118,h:395, c:"#b2ebf2", vert:1,
+   faces:[{k:"",secs:2}], lv:5},
+ {id:"CF1", nm:"Chest freezer 1 (under G1)", x:432,y:816,w:262,h:84, c:"#81d4fa",
+   faces:[{k:"",secs:1}], lv:1, under:1},
+ {id:"CF2", nm:"Chest freezer 2 (under G1)", x:695,y:816,w:262,h:84, c:"#81d4fa",
+   faces:[{k:"",secs:1}], lv:1, under:1},
+ {id:"W2", nm:"Wall shelves (top)", x:602,y:142,w:419,h:56, c:"#c8e6c9",
+   faces:[{k:"",secs:3}], lv:8},
+ {id:"S1", nm:"Free-standing piles", x:600,y:207,w:77,h:124, c:"#c8e6c9", vert:1,
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"S2", nm:"Free-standing piles", x:600,y:330,w:77,h:126, c:"#c8e6c9", vert:1,
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"F10a", nm:"Till — customer facing", x:1373,y:888,w:217,h:59, c:"#f48fb1",
+   faces:[{k:"",secs:2}], lv:4},
+ {id:"F10b", nm:"Till — hidden under POS", x:1372,y:951,w:220,h:41, c:"#ce93d8",
+   faces:[{k:"",secs:1}], lv:2},
+ {id:"F10s1", nm:"Cashier shelves (right)", x:1596,y:889,w:63,h:179, c:"#f8bbd0", vert:1,
+   faces:[{k:"",secs:1}], lv:5},
+ {id:"F10s2", nm:"Cashier shelves (S1 = patio side)", x:1371,y:1082,w:209,h:53, c:"#f8bbd0",
+   faces:[{k:"",secs:2}], lv:5, lvMap:{1:4}},
+ {id:"F10c", nm:"Cashier shelves corner", x:1581,y:1070,w:79,h:65, c:"#f8bbd0",
+   faces:[{k:"",secs:1}], lv:5},
+ {id:"F12", nm:"Slatwall column — 4 faces, hooks", x:1433,y:584,w:97,h:107, c:"#f8bbd0",
+   faces:[{k:"",secs:4}], lv:1},
+ {id:"F13", nm:"Island (new)", x:1442,y:720,w:79,h:137, c:"#f8bbd0", vert:1,
+   faces:[{k:"",secs:1}], lv:4},
+ {id:"F14", nm:"New place for stuff", x:1625,y:655,w:21,h:52, c:"#f8bbd0", vert:1,
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"N6", nm:"Red Bull fridge", x:1599,y:715,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
+ {id:"N5", nm:"Red Bull fridge", x:1599,y:773,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
+ {id:"N4", nm:"Red Bull fridge", x:1599,y:831,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
+ {id:"BK1", nm:"BACK room 1", x:208,y:158,w:405,h:484, c:"#dce775", zone:1, faces:[{k:"",secs:4}], lv:1},
+ {id:"BK2a", nm:"BACK zone A", x:0,y:293,w:208,h:351, c:"#dce775", zone:1, faces:[{k:"",secs:3}], lv:1},
+ {id:"BK2b", nm:"BACK zone B", x:0,y:644,w:207,h:497, c:"#dce775", zone:1, faces:[{k:"",secs:3}], lv:1},
+ {id:"PATIO", nm:"Patio (glass↔shutter)", x:1693,y:140,w:107,h:1001, c:"#ffe0b2", zone:1, faces:[{k:"",secs:5}], lv:1},
 ];
-const WALLS = [[254,92,1604,92],[254,1002,1604,1002],[1604,92,1604,1002],[1280,505,1604,505],[1280,505,1280,1002]];
-function defSecs(f){ if(f.secs) return f.secs;
-  const len = (f.vert? f.h : f.w) * CMPX; return Math.max(1, Math.round(len/100)); }
+/* structure to draw (non-interactive): walls [x,y,axis,len,thick,color], glass, doors */
+const STRUCT = [
+ [0,140,"v",1001,10,"#e53935"],[1800,140,"v",1001,9,"#e53935"],[0,1141,"h",1800,10,"#e53935"],
+ [613,140,"h",1187,9,"#3d4a5c"],[208,158,"h",256,9,"#3d4a5c"],[0,293,"h",208,9,"#3d4a5c"],
+ [208,158,"v",983,7,"#3d4a5c"],[208,642,"h",405,7,"#3d4a5c"],[613,158,"v",484,7,"#3d4a5c"],
+ [0,644,"h",207,7,"#3d4a5c"],[464,140,"v",143,7,"#3d4a5c"],[613,140,"v",143,7,"#3d4a5c"],
+ [464,140,"h",149,7,"#3d4a5c"],[464,283,"h",149,5,"#3d4a5c"],
+ [1368,890,"h",294,7,"#7d93b8"],[1368,890,"v",247,7,"#7d93b8"],
+];
+const GLASS = [[1693,142,173],[1693,321,179],[1693,637,152],[1693,796,159],[1693,962,176]];
+const DOORS = [[1693,503,131,"D1"],[200,650,90,"D2"],[613,338,74,"D5"],[0,353,230,"O1"],[0,670,220,"O2"],[0,930,180,"O2"]];
+const NONSTOCK = [
+ {id:"WC", x:464,y:140,w:149,h:143,c:"#fff59d",lbl:"WC"},
+ {id:"MH", x:462,y:727,w:172,h:73,c:"#fff176",lbl:"MH"},
+];
 
-/* ================= DB ================= */
+/* ============ DB ============ */
 let db;
 function openDB(){ return new Promise((res,rej)=>{
-  const r = indexedDB.open("hassanStock", 2);
+  const r = indexedDB.open("hassanStock", 3);
   r.onupgradeneeded = e=>{ const d=e.target.result;
     if(!d.objectStoreNames.contains("products")) d.createObjectStore("products",{keyPath:"barcode"});
     if(!d.objectStoreNames.contains("entries")){ const s=d.createObjectStore("entries",{keyPath:"id",autoIncrement:true});
       s.createIndex("barcode","barcode"); s.createIndex("loc","loc"); }
+    if(!d.objectStoreNames.contains("media")){ const m=d.createObjectStore("media",{keyPath:"id",autoIncrement:true});
+      m.createIndex("loc","loc"); }
     if(!d.objectStoreNames.contains("kv")) d.createObjectStore("kv",{keyPath:"k"});
   };
   r.onsuccess = e=>{ db=e.target.result; res(); };
@@ -385,130 +471,228 @@ const idbDel = (st,k)=>new Promise(r=>{ const q=tx(st,"readwrite").delete(k); q.
 const kvSet = (k,v)=>idbPut("kv",{k,v});
 const kvGet = async k=>{ const o=await idbGet("kv",k); return o?o.v:null; };
 
-/* ================= STATE ================= */
-let loc=null;              // {fx, side, sec, code, label}
-let secOverride={};        // fixture id -> sections count
-let current=null;          // {barcode, product}
-let qty=1, photos=[];      // photos = dataURLs pending save
-let session=[];            // saved entries this session (ids)
-let stockCache=[];         // entries for map counts
+/* ============ STATE ============ */
+let loc=null;              // {fx, face, sec, lvl, code}
+let ovSecs={}, ovLvls={};  // overrides: ovSecs["G2.N"]=5 ; ovLvls["G2.N3"]=7
+let current=null, qty=1, photos=[];
+let session=[], stockCache=[], mediaCache=[];
 let paused=false, lastHit={code:null,t:0};
 
-/* ================= UTIL ================= */
-const $ = id=>document.getElementById(id);
+const $=id=>document.getElementById(id);
+const fxById=id=>FX.find(f=>f.id===id);
+function faceSecs(f,face){ return ovSecs[f.id+"."+face] ?? f.faces.find(x=>x.k===face).secs; }
+function lvlsOf(f,face,sec){ return ovLvls[f.id+"."+face+sec] ?? (f.lvMap&&f.lvMap[face+sec]) ?? f.lv ?? 1; }
+function mkCode(fx,face,sec,lvl){
+  const f=fxById(fx); const bits=[fx];
+  if(face==="CAP") bits.push("CAP");
+  else{ if(face) bits.push(face); bits.push(sec); }
+  if(lvl) bits.push("L"+lvl);
+  return bits.join(".");
+}
 function toast(msg,warn){ const t=$("toast"); t.textContent=msg;
-  t.className="show"+(warn?" warn":""); clearTimeout(t._h); t._h=setTimeout(()=>t.className="",1600); }
+  t.className="show"+(warn?" warn":""); clearTimeout(t._h); t._h=setTimeout(()=>t.className="",1700); }
 function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
 let actx;
-function beep(ok){ try{ actx = actx||new (window.AudioContext||window.webkitAudioContext)();
-  const o=actx.createOscillator(), g=actx.createGain();
-  o.connect(g); g.connect(actx.destination);
-  o.frequency.value = ok?1320:340; g.gain.value=.14;
-  o.start(); o.stop(actx.currentTime+(ok?.09:.22)); }catch(e){} }
+function beep(ok){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(), g=actx.createGain(); o.connect(g); g.connect(actx.destination);
+  o.frequency.value=ok?1320:340; g.gain.value=.14; o.start(); o.stop(actx.currentTime+(ok?.09:.22)); }catch(e){} }
+const esc=s=>String(s??"").replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 
-/* ================= NAV ================= */
+/* ============ NAV ============ */
 function go(v){ document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
   $( {scan:"scanView",map:"mapView",stock:"stockView",set:"setView"}[v] ).classList.add("on");
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   if(v==="stock") renderStock(); if(v==="map") refreshMapCounts(); if(v==="set") renderSettings();
   if(v!=="map") hideSheet(); }
 
-/* ================= MAP ================= */
-let selFx=null, selSide=0;
+/* ============ MAP ============ */
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs){ const e=document.createElementNS(NS,tag);
+  for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+let selFx=null, selFace="", selSec=0;
 function buildMap(){
-  const svg=$("shopMap");
-  svg.innerHTML="";
-  const NS="http://www.w3.org/2000/svg";
-  // floor
-  const floor=document.createElementNS(NS,"rect");
-  Object.entries({x:254,y:92,width:1350,height:910,fill:"#131922",stroke:"#2d3644","stroke-width":3,rx:4}).forEach(([k,v])=>floor.setAttribute(k,v));
-  svg.appendChild(floor);
-  WALLS.forEach(w=>{ const l=document.createElementNS(NS,"line");
-    Object.entries({x1:w[0],y1:w[1],x2:w[2],y2:w[3],stroke:"#3d4a5c","stroke-width":6}).forEach(([k,v])=>l.setAttribute(k,v));
-    svg.appendChild(l); });
-  // door marker
-  const door=document.createElementNS(NS,"rect");
-  Object.entries({x:330,y:560,width:14,height:87,fill:"#e0a53f",rx:3}).forEach(([k,v])=>door.setAttribute(k,v));
-  svg.appendChild(door);
-  const dl=document.createElementNS(NS,"text");
-  Object.entries({x:352,y:610,"font-size":26,fill:"#e0a53f",class:"fxlbl"}).forEach(([k,v])=>dl.setAttribute(k,v));
-  dl.textContent="⇦ door"; svg.appendChild(dl);
-
-  FIXTURES.forEach(f=>{
-    const grp=document.createElementNS(NS,"g");
-    if(f.rot) grp.setAttribute("transform",`rotate(${f.rot} ${f.x+f.w/2} ${f.y+f.h/2})`);
-    const r=document.createElementNS(NS,"rect");
-    Object.entries({x:f.x,y:f.y,width:f.w,height:f.h,fill:f.color,stroke:"#0d1117",rx:6,class:"fx",opacity:.92}).forEach(([k,v])=>r.setAttribute(k,v));
-    r.id="fx-"+f.id;
+  const svg=$("shopMap"); svg.innerHTML="";
+  svg.appendChild(el("rect",{x:0,y:140,width:1800,height:1001,fill:"#131922"}));
+  NONSTOCK.forEach(z=>{ svg.appendChild(el("rect",{x:z.x,y:z.y,width:z.w,height:z.h,fill:z.c,opacity:.25,rx:4}));
+    const t=el("text",{x:z.x+z.w/2,y:z.y+z.h/2+8,"font-size":26,"text-anchor":"middle",fill:"#8b98a8",class:"fxbadge"});
+    t.textContent=z.lbl; svg.appendChild(t); });
+  FX.forEach(f=>{
+    const r=el("rect",{x:f.x,y:f.y,width:f.w,height:f.h,fill:f.c,stroke:"#0d1117",rx:5,
+      class:"fx",opacity:f.zone?.35:.94,id:"fx-"+f.id});
     r.addEventListener("click",()=>pickFixture(f));
-    grp.appendChild(r);
-    const t=document.createElementNS(NS,"text");
-    const fs = Math.min(30, Math.max(18, f.w/6));
-    Object.entries({x:f.x+f.w/2,y:f.y+f.h/2+7,"font-size":fs,"text-anchor":"middle",class:"fxlbl dark"}).forEach(([k,v])=>t.setAttribute(k,v));
-    t.textContent=f.id;
-    grp.appendChild(t);
-    // count badge
-    const b=document.createElementNS(NS,"text");
-    Object.entries({x:f.x+f.w/2,y:f.y-8,"font-size":22,"text-anchor":"middle",fill:"#8b98a8",id:"cnt-"+f.id,class:"fxlbl"}).forEach(([k,v])=>b.setAttribute(k,v));
-    grp.appendChild(b);
-    svg.appendChild(grp);
+    svg.appendChild(r);
+    const fs=f.zone?34:Math.max(20,Math.min(34,f.w/5));
+    const t=el("text",{x:f.x+f.w/2,y:f.y+f.h/2+fs*.35,"font-size":fs,"text-anchor":"middle",
+      class:"fxlbl",fill:f.zone?"#8b98a8":"#1a2330"});
+    t.textContent=f.id; svg.appendChild(t);
+    const b=el("text",{x:f.x+f.w/2,y:f.y-7,"font-size":21,"text-anchor":"middle",class:"fxbadge",id:"cnt-"+f.id});
+    svg.appendChild(b);
   });
+  STRUCT.forEach(w=>{ const [x,y,ax,len,th,c]=w;
+    svg.appendChild(el("line",{x1:x,y1:y,x2:ax==="h"?x+len:x,y2:ax==="v"?y+len:y,stroke:c,"stroke-width":th})); });
+  GLASS.forEach(g=>svg.appendChild(el("line",{x1:g[0],y1:g[1],x2:g[0],y2:g[1]+g[2],stroke:"#4aa8e0","stroke-width":8})));
+  DOORS.forEach(d=>{ const vert = d[0]===0||d[0]>1600||d[0]===200;
+    svg.appendChild(el("line",{x1:d[0],y1:d[1],x2:vert?d[0]:d[0],y2:d[1]+d[2],stroke:"#e0a53f","stroke-width":9,"stroke-dasharray":"14 8"})); });
+  const hs=el("text",{x:1782,y:640,"font-size":30,fill:"#e05f5f","text-anchor":"middle",
+    transform:"rotate(90 1782 640)",class:"fxbadge"}); hs.textContent="HIGH ST"; svg.appendChild(hs);
 }
 async function refreshMapCounts(){
-  stockCache = await idbAll("entries");
+  stockCache = await idbAll("entries"); mediaCache = await idbAll("media");
   const per={};
   stockCache.forEach(e=>{ per[e.fx]=(per[e.fx]||0)+e.qty; });
-  FIXTURES.forEach(f=>{ const el=$("cnt-"+f.id); if(el) el.textContent = per[f.id]? per[f.id]+" pcs":""; });
+  FX.forEach(f=>{ const t=$("cnt-"+f.id); if(t) t.textContent = per[f.id]? per[f.id]+"":""; });
 }
 function pickFixture(f){
-  selFx=f; selSide=0;
+  selFx=f; selFace=f.faces[0].k; selSec=0;
   document.querySelectorAll(".fx").forEach(x=>x.classList.remove("sel"));
-  $("fx-"+f.id).classList.add("sel");
-  buzz(10);
-  renderSheet();
+  $("fx-"+f.id).classList.add("sel"); buzz(10); renderSheet();
 }
 function renderSheet(){
   const f=selFx;
-  $("sheetTitle").textContent = f.id+" — "+f.name;
-  const n = secOverride[f.id]||defSecs(f);
-  const len = Math.round((f.vert?f.h:f.w)*CMPX);
-  $("sheetSub").textContent = `~${len} cm · ${n} section${n>1?"s":""}`+(f.sides?` · 2 sides`:"");
-  // sections stepper — add/remove bays right here
-  $("secSteprN").textContent = n;
+  $("sheetTitle").textContent=f.id+" — "+f.nm;
+  const n=faceSecs(f,selFace);
+  $("sheetSub").textContent = f.faces.length>1 ? "faces: N (party wall) · S (street) · CAP (end)" :
+    (f.zone?"zone — sections are areas":"sections × shelf levels");
+  $("secSteprN").textContent=n;
   const st=$("sideTabs");
-  if(f.sides){ st.style.display="flex";
-    st.innerHTML=f.sides.map((s,i)=>`<button class="${i===selSide?'on':''}" onclick="selSide=${i};renderSheet()">${s}</button>`).join("");
+  if(f.faces.length>1){ st.style.display="flex";
+    st.innerHTML=f.faces.map(x=>`<button class="${x.k===selFace?'on':''}" onclick="selFace='${x.k}';selSec=0;renderSheet()">${x.k}</button>`).join("");
   } else st.style.display="none";
   const per={};
-  stockCache.forEach(e=>{ if(e.fx===f.id) per[e.loc]=(per[e.loc]||0)+e.qty; });
+  stockCache.forEach(e=>{ if(e.fx===f.id){ const pre=mkCode(f.id,selFace,0,0).replace(/\.0$/,"");
+    } });
+  // per-section counts
+  const counts={};
+  stockCache.forEach(e=>{ counts[e.loc]=(counts[e.loc]||0)+e.qty; });
   let html="";
   for(let i=1;i<=n;i++){
-    const code = locCode(f,selSide,i);
-    const cur = loc && loc.code===code;
-    const c = per[code]||0;
-    html+=`<button class="${cur?'cur':''}" onclick="setLoc(${i})">${i}<span class="cnt">${c?c+" pcs":"—"}</span></button>`;
+    const base=mkCode(f.id,selFace,i,0);
+    let c=0; for(const k in counts) if(k===base||k.startsWith(base+".L")) c+=counts[k];
+    const mc=mediaCache.filter(m=>m.loc===base||m.loc.startsWith(base+".L")).length;
+    html+=`<button class="${selSec===i?'cur':''}" onclick="pickSec(${i})">${selFace==="CAP"?"CAP":i}
+      <span class="cnt">${c?c+"pcs":""}${mc?" 📎"+mc:""}</span></button>`;
   }
   $("secGrid").innerHTML=html;
+  if(selSec) renderLvls(); else $("lvlBox").classList.remove("show");
   $("sheet").classList.add("show");
 }
-function hideSheet(){ $("sheet").classList.remove("show"); }
-function locCode(f,side,sec){
-  return f.id + (f.sides? ["A","B"][side]:"") + "-" + sec;
+function pickSec(i){ selSec=i; buzz(8); renderSheet(); }
+function renderLvls(){
+  const f=selFx, n=lvlsOf(f,selFace,selSec);
+  $("lvlTitle").textContent=mkCode(f.id,selFace,selSec,0)+" — pick shelf";
+  $("lvlSteprN").textContent=n;
+  let html=`<button class="whole ${loc&&loc.code===mkCode(f.id,selFace,selSec,0)?'cur':''}" onclick="setLoc(0)">whole section</button>`;
+  for(let l=1;l<=n;l++){
+    const code=mkCode(f.id,selFace,selSec,l);
+    html+=`<button class="${loc&&loc.code===code?'cur':''}" onclick="setLoc(${l})">L${l}</button>`;
+  }
+  $("lvlChips").innerHTML=html;
+  $("lvlBox").classList.add("show");
 }
-function setLoc(sec){
+async function stepSecs(d){
+  const f=selFx; if(!f) return;
+  const key=f.id+"."+selFace;
+  ovSecs[key]=Math.min(40,Math.max(1,faceSecs(f,selFace)+d));
+  await kvSet("ovSecs",ovSecs); buzz(8);
+  if(selSec>ovSecs[key]) selSec=0;
+  renderSheet();
+}
+async function stepLvls(d){
+  const f=selFx; if(!f||!selSec) return;
+  const key=f.id+"."+selFace+selSec;
+  ovLvls[key]=Math.min(20,Math.max(1,lvlsOf(f,selFace,selSec)+d));
+  await kvSet("ovLvls",ovLvls); buzz(8); renderLvls();
+}
+function setLoc(lvl){
   const f=selFx;
-  loc={ fx:f.id, side:f.sides?["A","B"][selSide]:null, sec,
-        code:locCode(f,selSide,sec),
-        label:f.name+(f.sides?" · side "+["A","B"][selSide]:"")+" · sec "+sec };
+  loc={fx:f.id, face:selFace, sec:selSec, lvl:lvl||null, code:mkCode(f.id,selFace,selSec,lvl)};
   kvSet("loc",loc);
   $("locChip").classList.remove("none");
   $("locChipTxt").textContent=loc.code;
   buzz(20); toast("Location: "+loc.code);
-  renderSheet();
-  setTimeout(()=>{ hideSheet(); go("scan"); },420);
+  renderLvls(); renderSecCap();
+  setTimeout(()=>{ hideSheet(); go("scan"); },380);
+}
+function hideSheet(){ $("sheet").classList.remove("show"); }
+function nextSection(){
+  if(!loc) return;
+  const f=fxById(loc.fx); let face=loc.face, sec=loc.sec+1;
+  if(sec>faceSecs(f,face)){
+    const fi=f.faces.findIndex(x=>x.k===face);
+    if(fi<f.faces.length-1){ face=f.faces[fi+1].k; sec=1; }
+    else { toast("End of "+f.id+" — pick next fixture on map",1); go("map"); return; }
+  }
+  loc={fx:f.id, face, sec, lvl:null, code:mkCode(f.id,face,sec,0)};
+  kvSet("loc",loc);
+  $("locChipTxt").textContent=loc.code;
+  buzz([15,30,15]); toast("→ "+loc.code);
+  renderSecCap();
 }
 
-/* ================= SCANNER ================= */
+/* ============ SECTION CAPTURE (photo + voice) ============ */
+function sectionBase(){ if(!loc) return null; return mkCode(loc.fx,loc.face,loc.sec,0); }
+async function renderSecCap(){
+  $("secCap").classList.toggle("show",!!loc);
+  if(!loc){ $("mediaStrip").classList.remove("show"); return; }
+  mediaCache = await idbAll("media");
+  const base=sectionBase();
+  const items=mediaCache.filter(m=>m.loc===base||m.loc.startsWith(base+".L"));
+  const s=$("mediaStrip");
+  s.classList.toggle("show",items.length>0);
+  s.innerHTML=items.map(m=> m.kind==="photo"
+    ? `<div class="mThumb"><img src="${m.data}" onclick="viewPhotoSrc(this.src)"><span class="del" onclick="delMedia(${m.id})">✕</span></div>`
+    : `<div class="mThumb"><span class="aud" onclick="playVoice(${m.id})">🎙</span><span class="del" onclick="delMedia(${m.id})">✕</span></div>`
+  ).join("");
+}
+async function delMedia(id){ await idbDel("media",id); renderSecCap(); toast("Removed"); }
+async function playVoice(id){ const m=await idbGet("media",id); if(!m) return;
+  new Audio(m.data).play(); }
+async function secPhoto(){
+  if(!loc) return;
+  const v=$("cam");
+  const save=async data=>{ await idbPut("media",{loc:sectionBase(), fx:loc.fx, kind:"photo", data, ts:Date.now()});
+    buzz(25); toast("📷 → "+sectionBase()); renderSecCap(); };
+  if(stream && v.readyState>=2 && !paused){
+    const c=document.createElement("canvas");
+    const s=Math.min(1,1100/v.videoWidth);
+    c.width=v.videoWidth*s; c.height=v.videoHeight*s;
+    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+    save(c.toDataURL("image/jpeg",.75));
+  } else {
+    $("photoInput").onchange=async e=>{ const f=e.target.files[0]; if(!f) return;
+      save(await shrink(f,1100)); e.target.value=""; };
+    $("photoInput").click();
+  }
+}
+/* voice — hold to record */
+let rec=null, recChunks=[], recStream=null;
+const vb=document.getElementById("voiceBtn");
+async function startRec(){
+  if(rec) return;
+  try{ recStream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ toast("Mic blocked — allow microphone",1); return; }
+  recChunks=[];
+  rec=new MediaRecorder(recStream);
+  rec.ondataavailable=e=>recChunks.push(e.data);
+  rec.onstop=async ()=>{
+    recStream.getTracks().forEach(t=>t.stop()); recStream=null;
+    const blob=new Blob(recChunks,{type:rec.mimeType||"audio/webm"}); rec=null;
+    vb.classList.remove("recording"); $("voiceLbl").textContent="Hold: voice";
+    if(blob.size<1200){ toast("Too short",1); return; }
+    const fr=new FileReader();
+    fr.onload=async ()=>{ await idbPut("media",{loc:sectionBase(),fx:loc.fx,kind:"voice",data:fr.result,ts:Date.now()});
+      buzz([20,40,20]); toast("🎙 saved → "+sectionBase()); renderSecCap(); };
+    fr.readAsDataURL(blob);
+  };
+  rec.start(); vb.classList.add("recording"); $("voiceLbl").textContent="Recording…"; buzz(30);
+}
+function stopRec(){ if(rec && rec.state==="recording") rec.stop(); }
+vb.addEventListener("pointerdown",e=>{ e.preventDefault(); if(loc) startRec(); else toast("Pick a location first",1); });
+vb.addEventListener("pointerup",stopRec);
+vb.addEventListener("pointerleave",stopRec);
+vb.addEventListener("contextmenu",e=>e.preventDefault());
+
+/* ============ SCANNER ============ */
 let stream, detector, scanTimer;
 async function startScanner(){
   $("camErr").textContent="";
@@ -520,7 +704,7 @@ async function startScanner(){
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",
       width:{ideal:1280},height:{ideal:720}}});
-  }catch(e){ $("camErr").textContent="Camera blocked: "+e.message+" — allow camera for this page in Chrome."; return; }
+  }catch(e){ $("camErr").textContent="Camera blocked: "+e.message; return; }
   const v=$("cam"); v.srcObject=stream; await v.play();
   $("camOff").style.display="none"; $("reticle").style.display="block";
   $("pauseBtn").style.display="flex";
@@ -529,9 +713,7 @@ async function startScanner(){
   if("BarcodeDetector" in window){
     detector = new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","qr_code"]});
     scanLoop();
-  } else {
-    toast("No BarcodeDetector — use manual entry",1);
-  }
+  } else toast("No BarcodeDetector — use manual entry",1);
 }
 async function scanLoop(){
   if(!detector||!stream) return;
@@ -539,12 +721,8 @@ async function scanLoop(){
     try{
       const codes = await detector.detect($("cam"));
       if(codes.length){
-        const c=codes[0].rawValue;
-        const now=Date.now();
-        if(!(c===lastHit.code && now-lastHit.t<2500)){
-          lastHit={code:c,t:now};
-          onScan(c);
-        }
+        const c=codes[0].rawValue, now=Date.now();
+        if(!(c===lastHit.code && now-lastHit.t<2500)){ lastHit={code:c,t:now}; onScan(c); }
       }
     }catch(e){}
   }
@@ -554,17 +732,16 @@ function togglePause(){ paused=!paused; $("pauseBtn").textContent=paused?"▶":"
   $("reticle").style.display=paused?"none":"block"; }
 async function toggleTorch(){
   const track=stream && stream.getVideoTracks()[0]; if(!track) return;
-  const on = !$("flashBtn").classList.contains("on");
+  const on=!$("flashBtn").classList.contains("on");
   try{ await track.applyConstraints({advanced:[{torch:on}]}); $("flashBtn").classList.toggle("on",on); }catch(e){}
 }
 function manualGo(){ const v=$("manualCode").value.trim(); if(!v) return;
   $("manualCode").value=""; $("manualCode").blur(); onScan(v); }
 
-/* ================= SCAN HANDLER ================= */
+/* ============ SCAN HANDLER ============ */
 async function onScan(code){
   beep(1); buzz([30,40,30]);
   const hf=$("hitFlash"); hf.style.opacity=1; setTimeout(()=>hf.style.opacity=0,120);
-  // same product re-scanned while card open -> just +1 (rapid-fire counting)
   if(current && current.barcode===code && $("prodCard").classList.contains("show")){
     bumpQty(1); toast("+1 → "+qty); return;
   }
@@ -572,7 +749,7 @@ async function onScan(code){
   let p = await idbGet("products",code);
   current={barcode:code, product:p||{barcode:code,name:"",brand:"",size:"",img:""}};
   showCard();
-  if(!p || !p.name){ lookup(code); }
+  if(!p || !p.name) lookup(code);
 }
 function showCard(){
   const p=current.product;
@@ -581,26 +758,24 @@ function showCard(){
   $("prodMeta").textContent = [p.brand,p.size].filter(Boolean).join(" · ") || "tap fields below to fill in";
   $("prodBarcode").textContent = current.barcode;
   $("prodImg").src = p.img || "data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="74" height="74"><rect width="74" height="74" rx="10" fill="#1f2630"/><text x="37" y="44" font-size="26" text-anchor="middle" fill="#4a5563">?</text></svg>');
-  const edit = !p.name;
+  const edit=!p.name;
   $("nameEditRow").classList.toggle("show",edit);
   $("nameEdit").value=p.name||""; $("sizeEdit").value=p.size||"";
   $("qtyVal").textContent=qty;
-  $("saveBtn").disabled = !loc;
+  $("saveBtn").disabled=!loc;
   if(!loc) toast("Pick a location first (map)",1);
 }
 async function lookup(code){
   $("prodMeta").textContent="Looking up…";
   try{
-    const r = await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,brands,quantity,image_front_small_url",{signal:AbortSignal.timeout(6000)});
-    const j = await r.json();
+    const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json?fields=product_name,brands,quantity,image_front_small_url",{signal:AbortSignal.timeout(6000)});
+    const j=await r.json();
     if(j.status===1 && j.product){
       const pr=j.product;
-      current.product.name = pr.product_name||"";
-      current.product.brand = (pr.brands||"").split(",")[0];
-      current.product.size = pr.quantity||"";
-      if(pr.image_front_small_url){
-        try{ current.product.img = await urlToData(pr.image_front_small_url); }catch(e){}
-      }
+      current.product.name=pr.product_name||"";
+      current.product.brand=(pr.brands||"").split(",")[0];
+      current.product.size=pr.quantity||"";
+      if(pr.image_front_small_url){ try{ current.product.img=await urlToData(pr.image_front_small_url); }catch(e){} }
       await idbPut("products",current.product);
       showCard(); return;
     }
@@ -610,13 +785,11 @@ async function lookup(code){
 }
 function urlToData(url){ return fetch(url).then(r=>r.blob()).then(b=>new Promise(res=>{
   const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(b); })); }
-
 function bumpQty(d){ qty=Math.max(1,qty+d); $("qtyVal").textContent=qty; buzz(8); }
 function setQty(n){ qty=n; $("qtyVal").textContent=qty; buzz(8); }
 
-/* ================= PHOTOS ================= */
+/* product photo (attached to entry) */
 function snapPhoto(){
-  // if camera stream live, grab frame straight from it — fastest
   const v=$("cam");
   if(stream && v.readyState>=2 && !paused){
     const c=document.createElement("canvas");
@@ -626,16 +799,14 @@ function snapPhoto(){
     photos.push(c.toDataURL("image/jpeg",.72));
     buzz(25); renderPhotos(); toast("📷 captured");
   } else {
-    $("photoInput").onchange = async e=>{
-      const f=e.target.files[0]; if(!f) return;
-      photos.push(await shrink(f)); renderPhotos(); e.target.value="";
-    };
+    $("photoInput").onchange=async e=>{ const f=e.target.files[0]; if(!f) return;
+      photos.push(await shrink(f,900)); renderPhotos(); e.target.value=""; };
     $("photoInput").click();
   }
 }
-function shrink(file){ return new Promise(res=>{
+function shrink(file,maxpx){ return new Promise(res=>{
   const img=new Image(); img.onload=()=>{
-    const s=Math.min(1,900/Math.max(img.width,img.height));
+    const s=Math.min(1,maxpx/Math.max(img.width,img.height));
     const c=document.createElement("canvas");
     c.width=img.width*s; c.height=img.height*s;
     c.getContext("2d").drawImage(img,0,0,c.width,c.height);
@@ -649,7 +820,7 @@ function renderPhotos(){
 function viewPhoto(i){ $("photoViewImg").src=photos[i]; $("photoView").classList.add("show"); }
 function viewPhotoSrc(s){ $("photoViewImg").src=s; $("photoView").classList.add("show"); }
 
-/* ================= SAVE ================= */
+/* ============ SAVE ============ */
 async function saveEntry(){
   if(!loc){ toast("No location — open map",1); go("map"); return; }
   const p=current.product;
@@ -657,21 +828,17 @@ async function saveEntry(){
     p.name=$("nameEdit").value.trim()||p.name; p.size=$("sizeEdit").value.trim()||p.size;
     await idbPut("products",p);
   }
-  // merge with an existing entry at same loc+barcode
-  const all = await idbAll("entries");
-  const ex = all.find(e=>e.barcode===current.barcode && e.loc===loc.code);
-  let entry;
+  const all=await idbAll("entries");
+  const ex=all.find(e=>e.barcode===current.barcode && e.loc===loc.code);
   if(ex){ ex.qty+=qty; ex.ts=Date.now(); if(photos.length) ex.photos=(ex.photos||[]).concat(photos);
-    await idbPut("entries",ex); entry=ex;
+    await idbPut("entries",ex);
   } else {
-    entry={barcode:current.barcode, loc:loc.code, fx:loc.fx, qty, ts:Date.now(), photos:photos.slice()};
-    entry.id = await idbPut("entries",entry);
+    await idbPut("entries",{barcode:current.barcode, loc:loc.code, fx:loc.fx, qty, ts:Date.now(), photos:photos.slice()});
   }
   session.unshift({name:p.name||current.barcode, loc:loc.code, qty});
   renderSession();
   beep(1); buzz([20,30,60]);
   toast(`✓ ${qty} × ${p.name||current.barcode} → ${loc.code}`);
-  // reset for next rapid scan
   current=null; photos=[]; qty=1;
   $("prodCard").classList.remove("show");
   lastHit={code:null,t:0};
@@ -680,18 +847,17 @@ function renderSession(){
   const tot=session.reduce((a,b)=>a+b.qty,0);
   $("sessStats").textContent=`${session.length} saves · ${tot} pcs`;
   $("sessList").innerHTML=session.slice(0,8).map(s=>
-    `<div class="row"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${esc(s.name)}</span>
+    `<div class="row"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56%">${esc(s.name)}</span>
      <span><span class="si-loc">${s.loc}</span><b>${s.qty}</b></span></div>`).join("")
     || `<div class="muted" style="padding:6px 0">Nothing saved yet this session.</div>`;
 }
-const esc=s=>String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 
-/* ================= STOCK LIST ================= */
+/* ============ STOCK LIST ============ */
 async function renderStock(){
-  const entries = await idbAll("entries");
-  const prods = {}; (await idbAll("products")).forEach(p=>prods[p.barcode]=p);
-  // filter dropdown
-  const locs=[...new Set(entries.map(e=>e.loc))].sort();
+  const entries=await idbAll("entries");
+  const media=await idbAll("media");
+  const prods={}; (await idbAll("products")).forEach(p=>prods[p.barcode]=p);
+  const locs=[...new Set(entries.map(e=>e.loc).concat(media.map(m=>m.loc)))].sort();
   const sel=$("stockFilter"); const cur=sel.value;
   sel.innerHTML=`<option value="">All locations</option>`+locs.map(l=>`<option ${l===cur?"selected":""}>${l}</option>`).join("");
   const q=$("stockSearch").value.toLowerCase();
@@ -702,8 +868,15 @@ async function renderStock(){
     return (p.name||"").toLowerCase().includes(q)||e.barcode.includes(q)||e.loc.toLowerCase().includes(q);
   }).sort((a,b)=>b.ts-a.ts);
   const totQ=list.reduce((a,b)=>a+b.qty,0);
-  $("stockSummary").textContent=`${list.length} lines · ${totQ} pcs total`;
-  $("stockList").innerHTML=list.map(e=>{
+  const mFiltered = sel.value? media.filter(m=>m.loc===sel.value) : (q? media.filter(m=>m.loc.toLowerCase().includes(q)) : []);
+  $("stockSummary").textContent=`${list.length} lines · ${totQ} pcs`+(media.length?` · ${media.filter(m=>m.kind==='photo').length}📷 ${media.filter(m=>m.kind==='voice').length}🎙 total`:"");
+  let html=mFiltered.map(m=> m.kind==="photo"
+    ? `<div class="mediaRow"><img src="${m.data}" style="width:52px;height:52px;border-radius:8px;object-fit:cover" onclick="viewPhotoSrc(this.src)">
+       <span class="si-loc">${m.loc}</span><span class="muted">section photo</span>
+       <button class="si-del" style="margin-left:auto" onclick="delMedia(${m.id}).then(renderStock)">✕</button></div>`
+    : `<div class="mediaRow">🎙 <span class="si-loc">${m.loc}</span><audio controls src="${m.data}"></audio>
+       <button class="si-del" style="margin-left:auto" onclick="delMedia(${m.id}).then(renderStock)">✕</button></div>`).join("");
+  html+=list.map(e=>{
     const p=prods[e.barcode]||{};
     const ph=(e.photos&&e.photos[0])||p.img;
     return `<div class="stockItem">
@@ -715,44 +888,34 @@ async function renderStock(){
       <div class="si-qty">${e.qty}</div>
       <button class="si-del" onclick="delEntry(${e.id})">✕</button>
     </div>`;
-  }).join("") || `<div class="muted" style="text-align:center;padding:30px 0">No stock yet — go scan!</div>`;
+  }).join("");
+  $("stockList").innerHTML=html || `<div class="muted" style="text-align:center;padding:30px 0">No stock yet — go scan!</div>`;
 }
 async function delEntry(id){
   if(!confirm("Delete this stock line?")) return;
   await idbDel("entries",id); renderStock(); toast("Deleted");
 }
 
-/* ================= SETTINGS ================= */
+/* ============ SETTINGS ============ */
 async function renderSettings(){
-  $("secEditor").innerHTML = FIXTURES.map(f=>{
-    const n=secOverride[f.id]||defSecs(f);
-    return `<div class="secEditRow"><span class="nm"><b>${f.id}</b> <span class="muted">${esc(f.name)}</span></span>
-      <input type="number" min="1" max="40" value="${n}" onchange="setSecs('${f.id}',this.value)"></div>`;
-  }).join("");
-  const e=await idbAll("entries"), p=await idbAll("products");
+  const e=await idbAll("entries"), p=await idbAll("products"), m=await idbAll("media");
   const pcs=e.reduce((a,b)=>a+b.qty,0);
-  const phc=e.reduce((a,b)=>a+((b.photos||[]).length),0);
-  $("statsCard").textContent=`${p.length} products · ${e.length} stock lines · ${pcs} pcs · ${phc} photos · stored offline in this browser`;
-}
-async function setSecs(id,v){ secOverride[id]=Math.max(1,parseInt(v)||1); await kvSet("secOverride",secOverride); }
-async function stepSecs(d){
-  const f=selFx; if(!f) return;
-  const n=Math.min(40,Math.max(1,(secOverride[f.id]||defSecs(f))+d));
-  secOverride[f.id]=n; await kvSet("secOverride",secOverride);
-  buzz(8); renderSheet();
+  const phc=e.reduce((a,b)=>a+((b.photos||[]).length),0)+m.filter(x=>x.kind==="photo").length;
+  $("statsCard").textContent=`${p.length} products · ${e.length} stock lines · ${pcs} pcs · ${phc} photos · ${m.filter(x=>x.kind==="voice").length} voice notes · stored offline in this browser`;
 }
 
-/* ================= EXPORT / IMPORT ================= */
+/* ============ EXPORT / IMPORT ============ */
 function dl(name,blob){ const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=name; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
 async function exportJSON(){
-  const data={v:2, exported:new Date().toISOString(),
+  const data={v:3, schema:"hassan-stock/3", rev:"AQ", exported:new Date().toISOString(),
     products:await idbAll("products"), entries:await idbAll("entries"),
-    secOverride};
+    media:await idbAll("media"), ovSecs, ovLvls,
+    note:"Locations use FIXTURE.FACE.SECTION.LEVEL (L1=bottom). media[] = section photos + voice notes (webm base64) for AI decrypt pass."};
   dl(`hassan-stock-${new Date().toISOString().slice(0,10)}.json`,
      new Blob([JSON.stringify(data)],{type:"application/json"}));
-  toast("Backup exported");
+  toast("Backup / AI pack exported");
 }
 async function exportCSV(){
   const prods={}; (await idbAll("products")).forEach(p=>prods[p.barcode]=p);
@@ -770,31 +933,32 @@ async function importJSON(file){
     const data=JSON.parse(await file.text());
     for(const p of data.products||[]) await idbPut("products",p);
     for(const e of data.entries||[]){ delete e.id; await idbPut("entries",e); }
-    if(data.secOverride){ secOverride={...secOverride,...data.secOverride}; await kvSet("secOverride",secOverride); }
+    for(const m of data.media||[]){ delete m.id; await idbPut("media",m); }
+    if(data.ovSecs){ ovSecs={...ovSecs,...data.ovSecs}; await kvSet("ovSecs",ovSecs); }
+    if(data.ovLvls){ ovLvls={...ovLvls,...data.ovLvls}; await kvSet("ovLvls",ovLvls); }
     toast("Imported ✓"); renderStock();
   }catch(e){ toast("Import failed: bad file",1); }
 }
 async function wipeAll(){
-  if(!confirm("Erase ALL products, stock and photos on this phone?")) return;
+  if(!confirm("Erase ALL products, stock, photos and voice notes on this phone?")) return;
   if(!confirm("Really sure? Export a backup first if in doubt.")) return;
-  await new Promise(r=>{ const q=tx("entries","readwrite").clear(); q.onsuccess=r; });
-  await new Promise(r=>{ const q=tx("products","readwrite").clear(); q.onsuccess=r; });
-  session=[]; renderSession(); renderStock(); toast("All data erased");
+  for(const st of ["entries","products","media"])
+    await new Promise(r=>{ const q=tx(st,"readwrite").clear(); q.onsuccess=r; });
+  session=[]; renderSession(); renderStock(); renderSecCap(); toast("All data erased");
 }
 
-/* ================= INIT ================= */
+/* ============ INIT ============ */
 (async function(){
   await openDB();
-  secOverride = (await kvGet("secOverride"))||{};
-  const savedLoc = await kvGet("loc");
-  if(savedLoc){ loc=savedLoc; $("locChip").classList.remove("none"); $("locChipTxt").textContent=loc.code; }
-  buildMap();
-  refreshMapCounts();
-  renderSession();
+  ovSecs=(await kvGet("ovSecs"))||{}; ovLvls=(await kvGet("ovLvls"))||{};
+  const savedLoc=await kvGet("loc");
+  if(savedLoc && savedLoc.code && fxById(savedLoc.fx)){
+    loc=savedLoc; $("locChip").classList.remove("none"); $("locChipTxt").textContent=loc.code;
+  }
+  buildMap(); refreshMapCounts(); renderSession(); renderSecCap();
   $("manualCode").addEventListener("keydown",e=>{ if(e.key==="Enter") manualGo(); });
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
     $("fileWarn").style.display="block";
-  document.addEventListener("visibilitychange",()=>{ if(document.hidden && stream){ /* keep */ } });
 })();
 </script>
 </body>
