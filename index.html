@@ -227,6 +227,7 @@ main{flex:1;overflow:hidden;position:relative}
 .airow input.q{width:58px;text-align:center;padding:7px;font-size:15px;font-weight:800}
 .aispin{display:inline-block;width:16px;height:16px;border:2.5px solid var(--line);border-top-color:#c4b5f0;border-radius:50%;animation:spin 1s linear infinite;vertical-align:-3px;margin-right:7px}
 @keyframes spin{to{transform:rotate(360deg)}}
+#aiJobsBtn.ready{background:#c4b5f0 !important;color:#1d1633 !important;animation:pulse 1.2s infinite}
 #linkSheetIn{background:var(--panel);width:100%;border-radius:20px 20px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto}
 #linkSheetIn h3{font-size:15px;margin-bottom:4px}
 #linkList{display:flex;flex-direction:column;gap:7px;margin-top:10px}
@@ -277,6 +278,9 @@ main{flex:1;overflow:hidden;position:relative}
 
 <div id="top">
   <div class="title">Hassan Stock <span class="muted" style="font-size:11px">revAQ</span></div>
+  <button id="aiJobsBtn" style="display:none;background:rgba(74,58,122,.35);color:#c4b5f0;
+    font-weight:800;padding:9px 12px;border-radius:999px;font-size:14px;border:1px solid #4a3a7a"
+    onclick="openAiJobs()">✨</button>
   <button id="locChip" class="none" onclick="go('map')">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
     <span id="locChipTxt">Pick location</span>
@@ -386,6 +390,7 @@ main{flex:1;overflow:hidden;position:relative}
     <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
   </div>
   <input type="file" id="noteInput" accept="image/*" capture="environment" hidden>
+  <input type="file" id="galleryInput" accept="image/*" multiple hidden>
 
   <!-- MAP -->
   <div class="view" id="mapView">
@@ -490,6 +495,16 @@ main{flex:1;overflow:hidden;position:relative}
       </div>
     </div>
     <div class="card muted" id="statsCard"></div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:6px">↔ Fix section direction</h3>
+      <div class="muted" style="margin-bottom:8px">Walked a run the wrong way? This reverses the section
+        numbers (1↔last) for one face — all stock lines, photos and voice notes move with it.</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="flipFx" style="flex:1" onchange="fillFlipFaces()"></select>
+        <select id="flipFace" style="flex:1"></select>
+      </div>
+      <button class="setBtn" style="justify-content:center" onclick="flipFace()">↔ Reverse section order</button>
+    </div>
     <div class="card">
       <h3 style="font-size:14px;margin-bottom:8px">Health</h3>
       <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -713,7 +728,7 @@ window.addEventListener("popstate",()=>{
 function go(v){ document.querySelectorAll(".view").forEach(x=>x.classList.remove("on"));
   $( {scan:"scanView",map:"mapView",stock:"stockView",deliv:"delivView",set:"setView"}[v] ).classList.add("on");
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  if(v==="stock") renderStock(); if(v==="map") refreshMapCounts(); if(v==="set") renderSettings();
+  if(v==="stock") renderStock(); if(v==="map") refreshMapCounts(); if(v==="set"){ renderSettings(); fillFlipUI(); }
   if(v==="deliv") renderDelivery();
   if(v!=="map") hideSheet(); }
 
@@ -1557,92 +1572,188 @@ async function openElev(base){
 function elevFromStock(){ const v=$("stockFilter").value; if(!v){ toast("Pick a location filter first",1); return; }
   openElev(v.replace(/\.L\d+$/,"")); }
 
-/* ============ AI VISION (Gemini) ============ */
-let aiCfg={key:"",model:"gemini-2.5-flash"}, aiItems=[], aiPhoto=null;
+/* ============ AI VISION (Gemini) — background job queue ============ */
+let aiCfg={key:"",model:"gemini-2.5-flash"}, aiJobs=[], aiCur=null;
 function saveAiCfg(){ aiCfg={key:$("aiKey").value.trim(),model:$("aiModel").value.trim()||"gemini-2.5-flash"};
   kvSet("aiCfg",aiCfg); }
 function loadAiCfgUI(){ $("aiKey").value=aiCfg.key||""; $("aiModel").value=aiCfg.model||"gemini-2.5-flash"; }
-async function aiReadShelf(){
+
+function aiReadShelf(){          // source chooser
   if(!loc){ toast("Pick a location first",1); go("map"); return; }
   if(!aiCfg.key){ toast("Set your Gemini key first (More → AI vision)",1); go("set"); return; }
+  const secPhotos=mediaCache.filter(m=>m.kind==="photo"&&(m.loc===sectionBase()||m.loc.startsWith(sectionBase()+".L")));
+  $("linkSub").textContent="Section "+loc.code+" — runs in background, keep scanning.";
+  document.querySelector("#linkSheetIn h3").textContent="✨ AI read — photo source";
+  $("linkList").innerHTML=`
+    <button onclick="aiSrcCam()">📷 Camera — snap now</button>
+    <button onclick="aiSrcGallery()">🖼 Pick from gallery (multi-select OK)</button>
+    ${secPhotos.length?`<button onclick="aiSrcSection()">🗂 Use latest section photo (already taken)</button>`:""}`;
+  uiPush("link"); $("linkSheet").classList.add("show");
+}
+function aiSrcCam(){
+  $("linkSheet").classList.remove("show");
   const v=$("cam");
-  const run=d=>{ aiPhoto=d; aiCall(d); };
   if(stream && v.readyState>=2 && !paused){
     const c=document.createElement("canvas");
     const s=Math.min(1,1300/v.videoWidth);
     c.width=v.videoWidth*s; c.height=v.videoHeight*s;
     c.getContext("2d").drawImage(v,0,0,c.width,c.height);
-    run(c.toDataURL("image/jpeg",.78));
+    aiEnqueue(loc.code, c.toDataURL("image/jpeg",.78), true);
   } else {
     $("photoInput").onchange=async e=>{ const f=e.target.files[0]; e.target.value="";
-      if(f) run(await shrink(f,1300)); };
+      if(f) aiEnqueue(loc.code, await shrink(f,1300), true); };
     $("photoInput").click();
   }
 }
-async function aiCall(dataUrl){
-  uiPush("ai"); $("aiSheet").classList.add("show");
-  $("aiTitle").textContent="✨ AI shelf read — "+sectionBase();
-  $("aiSub").innerHTML='<span class="aispin"></span>Gemini is reading the shelf…';
-  $("aiList").innerHTML=""; $("aiConfirm").style.display="none"; aiItems=[];
-  // keep the photo as section media too
-  await idbPut("media",{guid:uuid(),loc:sectionBase(),fx:loc.fx,kind:"photo",data:dataUrl,ts:Date.now()});
-  renderSecCap(); queueAutoSync();
+function aiSrcGallery(){
+  $("linkSheet").classList.remove("show");
+  $("galleryInput").onchange=async e=>{
+    const fs=[...e.target.files]; e.target.value="";
+    for(const f of fs) aiEnqueue(loc.code, await shrink(f,1300), true);
+    if(fs.length>1) toast(`✨ ${fs.length} photos queued for ${loc.code}`);
+  };
+  $("galleryInput").click();
+}
+function aiSrcSection(){
+  $("linkSheet").classList.remove("show");
+  const ph=mediaCache.filter(m=>m.kind==="photo"&&(m.loc===sectionBase()||m.loc.startsWith(sectionBase()+".L")));
+  if(ph.length) aiEnqueue(loc.code, ph[ph.length-1].data, false);
+}
+async function aiEnqueue(locCode, dataUrl, saveMedia){
+  if(saveMedia){
+    await idbPut("media",{guid:uuid(),loc:locCode.replace(/\.L\d+$/,""),fx:locCode.split(".")[0],
+      kind:"photo",data:dataUrl,ts:Date.now()});
+    renderSecCap(); queueAutoSync();
+  }
+  const job={id:uuid(), loc:locCode, photo:dataUrl, status:"running", items:null, err:""};
+  aiJobs.push(job); updateAiBadge();
+  toast("✨ reading "+locCode+" in background…"); buzz(15);
+  runAiJob(job);
+}
+async function runAiJob(job){
   const prompt=`This is a photo of ONE retail shelf section in a UK corner shop. List every distinct product you can identify. Estimate how many units of each are visible (count facings and visible stacked/behind rows). Reply with ONLY JSON, no markdown: {"items":[{"name":"concise retail name","brand":"","size":"e.g. 500ml","count":1,"conf":0.0}]} — conf is 0-1 confidence. If the photo is unusable return {"items":[]}.`;
   try{
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiCfg.model)}:generateContent?key=${encodeURIComponent(aiCfg.key)}`,{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({contents:[{parts:[{text:prompt},
-        {inline_data:{mime_type:"image/jpeg",data:dataUrl.split(",")[1]}}]}],
+        {inline_data:{mime_type:"image/jpeg",data:job.photo.split(",")[1]}}]}],
         generationConfig:{temperature:.1,response_mime_type:"application/json"}}),
-      signal:AbortSignal.timeout(60000)});
-    if(!r.ok){ const t=await r.text();
-      $("aiSub").textContent="⚠ Gemini error "+r.status+(r.status===400?" — check the API key":r.status===429?" — rate/quota, try again in a minute":"")+".";
-      logErr("gemini "+r.status+": "+t.slice(0,120)); return; }
+      signal:AbortSignal.timeout(90000)});
+    if(!r.ok){ job.status="error";
+      job.err="Gemini "+r.status+(r.status===400?" (check key/model)":r.status===429?" (quota — retry in a min)":"");
+      logErr("gemini "+r.status); toast("✨ "+job.loc+" failed — "+job.err,1); updateAiBadge(); return; }
     const j=await r.json();
     let txt=(((j.candidates||[])[0]||{}).content||{parts:[]}).parts.map(p=>p.text||"").join("");
     txt=txt.replace(/^```json\s*|^```\s*|```\s*$/g,"").trim();
     const parsed=JSON.parse(txt);
-    aiItems=(parsed.items||[]).filter(x=>x&&x.name).map(x=>({
+    job.items=(parsed.items||[]).filter(x=>x&&x.name).map(x=>({
       name:String(x.name).slice(0,60), brand:String(x.brand||"").slice(0,30),
       size:String(x.size||"").slice(0,20), count:Math.max(1,parseInt(x.count)||1),
       conf:+x.conf||0, on:true}));
-    if(!aiItems.length){ $("aiSub").textContent="Couldn't identify products — try a closer/straighter photo."; return; }
-    $("aiSub").textContent="Check quantities, untick anything wrong, then add:";
-    $("aiList").innerHTML=aiItems.map((it,i)=>`
-      <div class="airow">
-        <input type="checkbox" ${it.on?"checked":""} onchange="aiItems[${i}].on=this.checked">
-        <div class="nm">${esc(it.name)}<small>${esc([it.brand,it.size].filter(Boolean).join(" · "))}${it.conf?` · ${Math.round(it.conf*100)}%`:""}</small></div>
-        <input class="q" type="number" min="1" value="${it.count}" onchange="aiItems[${i}].count=Math.max(1,+this.value||1)">
-      </div>`).join("");
-    $("aiConfirm").style.display="block";
-    buzz([20,30,20]);
+    job.status="ready";
+    beep(1); buzz([20,40,20]);
+    toast(`✨ ${job.loc} ready — ${job.items.length} items · tap ✨ to review`);
   }catch(e){
-    $("aiSub").textContent="⚠ Failed: "+(e.name==="TimeoutError"?"timed out":"couldn't reach Gemini / bad response")+". Photo is saved — try again or leave it for the export decrypt.";
-    logErr("gemini: "+e.message);
+    job.status="error"; job.err=e.name==="TimeoutError"?"timed out":"network/parse error";
+    logErr("gemini: "+e.message); toast("✨ "+job.loc+" failed — photo saved",1);
   }
+  updateAiBadge();
+}
+function updateAiBadge(){
+  const open=aiJobs.filter(j=>j.status!=="done");
+  const ready=open.filter(j=>j.status==="ready").length;
+  const b=$("aiJobsBtn");
+  b.style.display=open.length?"flex":"none";
+  b.textContent="✨"+(ready||open.length);
+  b.classList.toggle("ready",ready>0);
+}
+function openAiJobs(){
+  const open=aiJobs.filter(j=>j.status!=="done");
+  if(!open.length) return;
+  const ready=open.find(j=>j.status==="ready");
+  if(ready){ showAiReview(ready); return; }
+  document.querySelector("#linkSheetIn h3").textContent="✨ AI jobs";
+  $("linkSub").textContent="";
+  $("linkList").innerHTML=open.map(j=>
+    `<button>${j.status==="running"?'<span class="aispin"></span>':"⚠"} ${j.loc} — ${j.status}${j.err?": "+esc(j.err):""}</button>`).join("");
+  uiPush("link"); $("linkSheet").classList.add("show");
+}
+function showAiReview(job){
+  aiCur=job;
+  uiPush("ai"); $("aiSheet").classList.add("show");
+  $("aiTitle").textContent="✨ "+job.loc+" — "+job.items.length+" items";
+  $("aiSub").textContent="Check quantities, untick anything wrong, then add:";
+  $("aiList").innerHTML=job.items.map((it,i)=>`
+    <div class="airow">
+      <input type="checkbox" ${it.on?"checked":""} onchange="aiCur.items[${i}].on=this.checked">
+      <div class="nm">${esc(it.name)}<small>${esc([it.brand,it.size].filter(Boolean).join(" · "))}${it.conf?` · ${Math.round(it.conf*100)}%`:""}</small></div>
+      <input class="q" type="number" min="1" value="${it.count}" onchange="aiCur.items[${i}].count=Math.max(1,+this.value||1)">
+    </div>`).join("");
+  $("aiConfirm").style.display="block";
 }
 async function aiConfirmSave(){
-  const picked=aiItems.filter(x=>x.on);
+  const job=aiCur; if(!job) return;
+  const picked=job.items.filter(x=>x.on);
   if(!picked.length){ toast("Nothing ticked",1); return; }
+  const fx=job.loc.split(".")[0];
   const prods=await idbAll("products");
   let n=0,pcs=0;
   for(const it of picked){
-    // reuse an existing product with same name (case-insens) if we have one
     let p=prods.find(x=>(x.name||"").toLowerCase()===it.name.toLowerCase());
     if(!p){ p={barcode:"AI-"+uuid().slice(0,8).toUpperCase(), name:it.name, brand:it.brand,
-      size:it.size, img:"", pend:1, ai:1}; await idbPut("products",p); }
+      size:it.size, img:"", pend:1, ai:1}; await idbPut("products",p); prods.push(p); }
     const all=await idbAll("entries");
-    const ex=all.find(e=>e.barcode===p.barcode && e.loc===loc.code);
+    const ex=all.find(e=>e.barcode===p.barcode && e.loc===job.loc);
     if(ex){ ex.qty+=it.count; ex.ts=Date.now(); await idbPut("entries",ex); }
-    else await idbPut("entries",{guid:uuid(),u:syncCfg.user||"",barcode:p.barcode,loc:loc.code,
-      fx:loc.fx,qty:it.count,ts:Date.now(),photos:[],ai:1});
-    session.unshift({name:it.name,loc:loc.code,qty:it.count});
+    else await idbPut("entries",{guid:uuid(),u:syncCfg.user||"",barcode:p.barcode,loc:job.loc,
+      fx,qty:it.count,ts:Date.now(),photos:[],ai:1});
+    session.unshift({name:it.name,loc:job.loc,qty:it.count});
     n++; pcs+=it.count;
   }
+  job.status="done"; aiCur=null;
   $("aiSheet").classList.remove("show");
-  renderSession(); refreshMapCounts(); queueAutoSync();
+  renderSession(); refreshMapCounts(); updateAiBadge(); queueAutoSync();
   beep(1); buzz([20,30,60]);
-  toast(`✨ ${n} products · ${pcs} pcs → ${loc.code}`);
+  toast(`✨ ${n} products · ${pcs} pcs → ${job.loc}`);
+  const next=aiJobs.find(j=>j.status==="ready");
+  if(next) setTimeout(()=>showAiReview(next),450);
+}
+
+/* ============ SECTION DIRECTION FLIP ============ */
+function fillFlipUI(){
+  $("flipFx").innerHTML=FX.filter(f=>!f.off).map(f=>`<option value="${f.id}">${f.id} — ${esc(f.nm).slice(0,26)}</option>`).join("");
+  fillFlipFaces();
+}
+function fillFlipFaces(){
+  const f=fxById($("flipFx").value); if(!f) return;
+  $("flipFace").innerHTML=f.faces.filter(x=>x.k!=="CAP").map(x=>
+    `<option value="${x.k}">${x.k||"(sections)"} — ${faceSecs(f,x.k)} secs</option>`).join("");
+}
+async function flipFace(){
+  const f=fxById($("flipFx").value); if(!f) return;
+  const face=$("flipFace").value;
+  const n=faceSecs(f,face);
+  if(n<2){ toast("Only 1 section — nothing to flip",1); return; }
+  if(!confirm(`Reverse ${f.id}${face?"."+face:""} section numbers? 1↔${n}, 2↔${n-1}…`)) return;
+  const pre = f.id+"."+(face?face+".":"");
+  const re = new RegExp("^"+pre.replace(/\./g,"\\.")+"(\\d+)((\\.L\\d+)?)$");
+  let moved=0;
+  for(const st of ["entries","media"]){
+    const all=await idbAll(st);
+    for(const r of all){
+      const m=(r.loc||"").match(re);
+      if(!m) continue;
+      const sec=+m[1]; if(sec<1||sec>n) continue;
+      r.loc=pre+(n+1-sec)+(m[2]||"");
+      await idbPut(st,r); moved++;
+    }
+  }
+  if(loc && loc.fx===f.id && loc.face===face){
+    loc={...loc, sec:n+1-loc.sec, code:mkCode(f.id,face,n+1-loc.sec,loc.lvl||0)};
+    kvSet("loc",loc); $("locChipTxt").textContent=loc.code; renderSecCap();
+  }
+  toast(`↔ flipped ${f.id}${face?"."+face:""} — ${moved} records moved`);
+  buzz([25,40,25]); renderStock(); refreshMapCounts(); queueAutoSync();
 }
 
 /* ============ ERROR LOG + SELF-HEALING ============ */
@@ -1706,13 +1817,23 @@ async function importJSON(file){
   if(!file) return;
   try{
     const data=JSON.parse(await file.text());
-    for(const p of data.products||[]) await idbPut("products",p);
-    for(const e of data.entries||[]){ delete e.id; await idbPut("entries",e); }
-    for(const m of data.media||[]){ delete m.id; await idbPut("media",m); }
+    let np=0,ne=0,nm=0,skip=0;
+    const haveE=new Set((await idbAll("entries")).map(r=>r.guid).filter(Boolean));
+    const haveM=new Set((await idbAll("media")).map(r=>r.guid).filter(Boolean));
+    for(const p of data.products||[]){ await idbPut("products",p); np++; }
+    for(const e of data.entries||[]){
+      if(e.guid && haveE.has(e.guid)){ skip++; continue; }
+      delete e.id; await idbPut("entries",e); ne++;
+    }
+    for(const m of data.media||[]){
+      if(m.guid && haveM.has(m.guid)){ skip++; continue; }
+      delete m.id; await idbPut("media",m); nm++;
+    }
     if(data.ovSecs){ ovSecs={...ovSecs,...data.ovSecs}; await kvSet("ovSecs",ovSecs); }
     if(data.ovLvls){ ovLvls={...ovLvls,...data.ovLvls}; await kvSet("ovLvls",ovLvls); }
-    toast("Imported ✓"); renderStock();
-  }catch(e){ toast("Import failed: bad file",1); }
+    toast(`✓ Imported: +${np} products, +${ne} lines${nm?", +"+nm+" media":""}${skip?" ("+skip+" dupes skipped)":""}`);
+    renderStock(); refreshMapCounts(); renderSecCap(); queueAutoSync();
+  }catch(e){ toast("Import FAILED: "+String(e.message).slice(0,60),1); logErr("import: "+e.message); }
 }
 async function wipeAll(){
   if(!confirm("Erase ALL products, stock, photos and voice notes on this phone?")) return;
