@@ -1431,7 +1431,13 @@ async function cancelDelivery(){
 /* ============ CLOUD SYNC (Apps Script backend) ============ */
 let syncCfg={url:"",pin:"",user:"",auto:false}, syncTimer=null, syncing=false;
 function saveSyncCfg(){
-  syncCfg={url:$("syncUrl").value.trim(),pin:$("syncPin").value.trim(),
+  let url=$("syncUrl").value.replace(/\s+/g,"");
+  // self-heal common paste mistakes: bare deployment ID, missing /exec
+  if(url && !/^https?:\/\//i.test(url) && /^AKfy[\w-]{20,}$/.test(url))
+    url="https://script.google.com/macros/s/"+url+"/exec";
+  if(/script\.google\.com\/macros\/s\/[\w-]+$/.test(url)) url+="/exec";
+  $("syncUrl").value=url;
+  syncCfg={url, pin:$("syncPin").value.trim(),
     user:$("syncUser").value.trim(),auto:$("syncAuto").checked};
   kvSet("syncCfg",syncCfg);
 }
