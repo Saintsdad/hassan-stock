@@ -588,11 +588,16 @@ const FX = [
  {id:"N6", nm:"Red Bull fridge", x:1599,y:715,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
  {id:"N5", nm:"Red Bull fridge", x:1599,y:773,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
  {id:"N4", nm:"Red Bull fridge", x:1599,y:831,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
- {id:"BK1", nm:"BACK room 1", x:208,y:158,w:405,h:484, c:"#dce775", zone:1, faces:[{k:"",secs:4}], lv:1},
- {id:"BK2a", nm:"BACK zone A", x:0,y:293,w:208,h:351, c:"#dce775", zone:1, faces:[{k:"",secs:3}], lv:1},
- {id:"BK2b", nm:"BACK zone B", x:0,y:644,w:207,h:497, c:"#dce775", zone:1, faces:[{k:"",secs:3}], lv:1},
+ {id:"G4", nm:"OFFERS island — reduced / best-after / last offer", x:1612,y:248,w:66,h:250, c:"#ffcc80", vert:1,
+   faces:[{k:"A",secs:2},{k:"B",secs:2}], lv:5},
+ {id:"BK1", nm:"BACK room 1", x:208,y:158,w:405,h:484, c:"#dce775", zone:1, off:1, faces:[{k:"",secs:4}], lv:1},
+ {id:"BK2a", nm:"BACK zone A", x:0,y:293,w:208,h:351, c:"#dce775", zone:1, off:1, faces:[{k:"",secs:3}], lv:1},
+ {id:"BK2b", nm:"BACK zone B", x:0,y:644,w:207,h:497, c:"#dce775", zone:1, off:1, faces:[{k:"",secs:3}], lv:1},
  {id:"PATIO", nm:"Patio (glass↔shutter)", x:1693,y:140,w:107,h:1001, c:"#ffe0b2", zone:1, faces:[{k:"",secs:5}], lv:1},
 ];
+/* walking route for ◀▶ navigation — next/prev section flows THROUGH the whole shop */
+const ROUTE=["W1","RR","G1","CF1","CF2","G2","G2x","ST1","G3","G4","N3","W2","S1","S2",
+  "F12","F13","F14","N6","N5","N4","F10a","F10b","F10s1","F10s2","F10c","PATIO"];
 /* structure to draw (non-interactive): walls [x,y,axis,len,thick,color], glass, doors */
 const STRUCT = [
  [0,140,"v",1001,10,"#e53935"],[1800,140,"v",1001,9,"#e53935"],[0,1141,"h",1800,10,"#e53935"],
@@ -680,18 +685,21 @@ function buildMap(){
     t.textContent=z.lbl; svg.appendChild(t); });
   FX.forEach(f=>{
     const r=el("rect",{x:f.x,y:f.y,width:f.w,height:f.h,fill:f.c,stroke:"#0d1117",rx:5,
-      class:"fx",opacity:f.zone?.35:.94,id:"fx-"+f.id});
-    r.addEventListener("click",()=>pickFixture(f));
+      class:f.off?"":"fx",opacity:f.off?.13:(f.zone?.35:.94),id:"fx-"+f.id});
+    if(!f.off) r.addEventListener("click",()=>pickFixture(f));
     svg.appendChild(r);
   });
   FX.forEach(f=>{   // labels on top of everything (G1 sits under CF1/CF2)
     const fs=f.zone?34:Math.max(20,Math.min(34,f.w/5));
     const lx=f.id==="G1"? f.x+f.w-40 : f.x+f.w/2;
     const t=el("text",{x:lx,y:f.y+f.h/2+fs*.35,"font-size":fs,"text-anchor":"middle",
-      class:"fxlbl",fill:f.zone?"#8b98a8":"#1a2330","pointer-events":"none"});
-    t.textContent=f.id; svg.appendChild(t);
-    const b=el("text",{x:f.x+f.w/2,y:f.y-7,"font-size":21,"text-anchor":"middle",class:"fxbadge",id:"cnt-"+f.id});
-    svg.appendChild(b);
+      class:"fxlbl",fill:(f.zone||f.off)?"#8b98a8":"#1a2330","pointer-events":"none",
+      opacity:f.off?.35:1});
+    t.textContent=f.id+(f.off?" ✕":""); svg.appendChild(t);
+    if(!f.off){
+      const b=el("text",{x:f.x+f.w/2,y:f.y-7,"font-size":21,"text-anchor":"middle",class:"fxbadge",id:"cnt-"+f.id});
+      svg.appendChild(b);
+    }
   });
   STRUCT.forEach(w=>{ const [x,y,ax,len,th,c]=w;
     svg.appendChild(el("line",{x1:x,y1:y,x2:ax==="h"?x+len:x,y2:ax==="v"?y+len:y,stroke:c,"stroke-width":th})); });
@@ -779,23 +787,35 @@ function setLoc(lvl){
   setTimeout(()=>{ hideSheet(); go("scan"); },380);
 }
 function hideSheet(){ $("sheet").classList.remove("show"); }
+const routeFx=()=>ROUTE.map(fxById).filter(f=>f&&!f.off);
 function moveSection(dir){
   if(!loc) return;
-  const f=fxById(loc.fx); let face=loc.face, sec=loc.sec+dir;
+  let f=fxById(loc.fx), face=loc.face, sec=loc.sec+dir, jumped=false;
   if(sec>faceSecs(f,face)){
     const fi=f.faces.findIndex(x=>x.k===face);
     if(fi<f.faces.length-1){ face=f.faces[fi+1].k; sec=1; }
-    else { toast("End of "+f.id+" — pick next fixture on map",1); go("map"); return; }
+    else { // next fixture on the walking route
+      const r=routeFx(), i=r.findIndex(x=>x.id===f.id);
+      const nf = i>=0 ? r[i+1] : r[0];
+      if(!nf){ toast("🏁 End of the route — whole shop done!",1); return; }
+      f=nf; face=f.faces[0].k; sec=1; jumped=true;
+    }
   }
   if(sec<1){
     const fi=f.faces.findIndex(x=>x.k===face);
     if(fi>0){ face=f.faces[fi-1].k; sec=faceSecs(f,face); }
-    else { toast("Start of "+f.id,1); return; }
+    else { // previous fixture on the route
+      const r=routeFx(), i=r.findIndex(x=>x.id===f.id);
+      const pf = i>0 ? r[i-1] : null;
+      if(!pf){ toast("Start of the route",1); return; }
+      f=pf; face=f.faces[f.faces.length-1].k; sec=faceSecs(f,face); jumped=true;
+    }
   }
   loc={fx:f.id, face, sec, lvl:null, code:mkCode(f.id,face,sec,0)};
   kvSet("loc",loc);
   $("locChipTxt").textContent=loc.code;
-  buzz([15,30,15]); toast("→ "+loc.code);
+  buzz(jumped?[25,40,25,40,25]:[15,30,15]);
+  toast((jumped?"🚶 next fixture → ":"→ ")+loc.code);
   renderSecCap();
 }
 const nextSection=()=>moveSection(1);
