@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1216">
+<title>Hassan Stock — Lite sweep</title>
+<link rel="manifest" href="lite.webmanifest">
+<style>
+:root{
+  --bg:#0f1216; --panel:#171c22; --panel2:#1e242c; --line:#2b333d;
+  --ink:#e8eef5; --muted:#8b98a8; --acc:#37e0c4; --warn:#ffb020; --rec:#ff4d4d;
+  --done:#2e7d5b;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+     overscroll-behavior:none;user-select:none}
+#top{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);
+     padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;display:flex;align-items:center;gap:8px}
+#top b{font-size:16px}
+#crumb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px}
+button{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
+       border-radius:12px;padding:11px 13px;font-weight:700}
+button:active{transform:scale(.97)}
+button.pri{background:var(--acc);color:#04211d;border-color:transparent}
+button.ghost{background:transparent}
+.view{display:none;padding:10px 10px 120px}
+.view.on{display:block}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+
+/* ---- map ---- */
+#mapWrap{background:#0b0e11;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+#mapSvg{display:block;width:100%;height:auto;touch-action:manipulation}
+.fxr{cursor:pointer}
+.fxr rect{stroke:#0b0e11;stroke-width:6}
+.fxr text{font:700 42px system-ui;fill:#0b0e11;pointer-events:none}
+.badge{font:800 40px system-ui;fill:#fff}
+
+/* ---- lists ---- */
+.row{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
+     border-radius:14px;padding:12px;margin-bottom:8px}
+.row .grow{flex:1;min-width:0}
+.tag{font-size:12px;font-weight:800;padding:3px 8px;border-radius:999px;background:var(--panel2);color:var(--muted)}
+.tag.ok{background:var(--done);color:#eafff6}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:44px;height:44px;padding:0;font-size:20px;line-height:1}
+.stepper .n{min-width:34px;text-align:center;font-weight:900;font-size:18px}
+
+/* ---- capture ---- */
+#camWrap{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4}
+#cam{width:100%;height:100%;object-fit:cover;display:block}
+#recDot{position:absolute;top:10px;left:10px;display:none;align-items:center;gap:7px;
+        background:rgba(0,0,0,.55);padding:6px 10px;border-radius:999px;font-weight:800}
+#recDot.on{display:flex}
+#recDot i{width:11px;height:11px;border-radius:50%;background:var(--rec);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+#shelfBar{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+#shelfBar button{flex:1 1 62px;padding:14px 6px}
+#shelfBar button.hit{background:var(--acc);color:#04211d}
+#actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#actions button{padding:16px 10px;font-size:16px}
+#recBtn.rec{background:var(--rec);color:#fff;border-color:transparent}
+#clips .row{padding:9px 12px}
+#bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--line);
+     padding:8px 10px calc(env(safe-area-inset-bottom) + 8px);display:flex;gap:8px}
+#bar button{flex:1}
+#toast{position:fixed;left:12px;right:12px;bottom:78px;z-index:60;background:#0a0d10;border:1px solid var(--line);
+       border-radius:12px;padding:11px 13px;font-weight:700;opacity:0;transform:translateY(10px);
+       transition:.18s;pointer-events:none}
+#toast.show{opacity:1;transform:none}
+#toast.warn{border-color:var(--warn);color:var(--warn)}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <button class="ghost" id="backBtn" onclick="back()" style="display:none;padding:8px 11px">‹</button>
+  <b id="title">Sweep</b>
+  <div id="crumb"></div>
+  <button class="ghost" onclick="go('export')" style="padding:8px 11px">⇩</button>
+</div>
+
+<!-- ===================== MAP ===================== -->
+<div id="mapView" class="view on">
+  <div class="small muted" style="margin:0 0 8px">
+    Tap a fixture. Green = something recorded. Numbers are clips.
+  </div>
+  <div id="mapWrap"><svg id="mapSvg" viewBox="0 0 1800 1290" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div id="routeList" style="margin-top:12px"></div>
+</div>
+
+<!-- ===================== FIXTURE ===================== -->
+<div id="fxView" class="view">
+  <div id="fxHead" class="small muted" style="margin-bottom:10px"></div>
+  <div id="secList"></div>
+</div>
+
+<!-- ===================== CAPTURE ===================== -->
+<div id="capView" class="view">
+  <div id="camWrap">
+    <video id="cam" playsinline muted autoplay></video>
+    <div id="recDot"><i></i><span id="recTime">0:00</span></div>
+  </div>
+
+  <div class="small muted" style="margin:10px 0 4px" id="shelfHint"></div>
+  <div id="shelfBar"></div>
+
+  <div id="actions">
+    <button id="recBtn" onclick="toggleRec()">🎥 Record</button>
+    <button onclick="snap()">📷 Photo</button>
+    <button onclick="toggleVoice()" id="voiceBtn">🎤 Voice note</button>
+    <button onclick="flipCam()">🔄 Flip</button>
+  </div>
+
+  <div style="margin-top:14px" class="small muted">Recorded here</div>
+  <div id="clips" style="margin-top:6px"></div>
+</div>
+
+<!-- ===================== EXPORT ===================== -->
+<div id="exportView" class="view">
+  <div id="storage" class="small muted" style="margin-bottom:10px"></div>
+  <div class="row">
+    <div class="grow"><b>manifest.json</b><div class="small muted">Every clip, its location, length and markers</div></div>
+    <button onclick="saveManifest()">Save</button>
+  </div>
+  <div id="exportList"></div>
+</div>
+
+<div id="bar">
+  <button onclick="go('map')">🗺 Map</button>
+  <button onclick="go('export')">⇩ Export</button>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Hassan Stock — LITE SWEEP
+   ------------------------------------------------------------
+   Walk the shop, record, move on. No barcodes, no quantities,
+   no touching the products. Post-processing turns the video
+   into stock later.
+
+   Locations are the SAME scheme the full scanner uses —
+   FIXTURE.FACE.SECTION.LEVEL, L1 the bottom shelf — so anything
+   captured here drops straight into the existing pipeline.
+   ============================================================ */
+
+/* ---- fixtures: copied from the scanner, rev AQ (2026-08-09) ---- */
+const FX = [
+ {id:"G1", nm:"Gondola 1 (secs 2–5 = freezers)", x:432,y:797,w:790,h:124, c:"#a5d6a7",
+   faces:[{k:"N",secs:5},{k:"S",secs:5},{k:"CAP",secs:1}], lv:8,
+   lvMap:{N1:8,S1:8,N2:4,N3:4,N4:4,N5:4,S2:3,S3:3,S4:3,S5:3,CAP1:7}},
+ {id:"G2", nm:"Gondola 2", x:600,y:533,w:739,h:166, c:"#a5d6a7",
+   faces:[{k:"N",secs:5},{k:"S",secs:5},{k:"CAP",secs:1}], lv:7, lvMap:{S1:6,S2:6,CAP1:8}},
+ {id:"G3", nm:"Gondola 3", x:809,y:308,w:618,h:148, c:"#a5d6a7",
+   faces:[{k:"N",secs:4},{k:"S",secs:4},{k:"CAP",secs:1}], lv:6, lvMap:{CAP1:5}},
+ {id:"G2x", nm:"Rear extension (of G2 line)", x:234,y:633,w:339,h:66, c:"#a5d6a7",
+   faces:[{k:"",secs:3}], lv:7, lvMap:{3:6}},
+ {id:"ST1", nm:"Stock shelves (mirror of G2x)", x:285,y:564,w:322,h:66, c:"#c8e6c9",
+   faces:[{k:"",secs:2}], lv:7},
+ {id:"W1", nm:"Fridge bank (window wall)", x:327,y:1046,w:1035,h:90, c:"#b2ebf2",
+   faces:[{k:"",secs:8}], lv:5},
+ {id:"N3", nm:"Fridge run (top wall)", x:1022,y:139,w:629,h:92, c:"#b2ebf2",
+   faces:[{k:"",secs:5}], lv:5, lvMap:{5:4}},
+ {id:"RR", nm:"Fridge — runs to back wall", x:210,y:741,w:118,h:395, c:"#b2ebf2", vert:1,
+   faces:[{k:"",secs:2}], lv:5},
+ {id:"CF1", nm:"Chest freezer 1 (under G1)", x:432,y:816,w:262,h:84, c:"#81d4fa",
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"CF2", nm:"Chest freezer 2 (under G1)", x:695,y:816,w:262,h:84, c:"#81d4fa",
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"W2", nm:"Wall shelves (top)", x:602,y:142,w:419,h:56, c:"#c8e6c9",
+   faces:[{k:"",secs:3}], lv:8},
+ {id:"S1", nm:"Free-standing piles", x:600,y:207,w:77,h:124, c:"#c8e6c9", vert:1,
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"S2", nm:"Free-standing piles", x:600,y:330,w:77,h:126, c:"#c8e6c9", vert:1,
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"F10a", nm:"Till — customer facing", x:1373,y:888,w:217,h:59, c:"#f48fb1",
+   faces:[{k:"",secs:2}], lv:4},
+ {id:"F10b", nm:"Till — hidden under POS", x:1372,y:951,w:220,h:41, c:"#ce93d8",
+   faces:[{k:"",secs:1}], lv:2},
+ {id:"F10s1", nm:"Cashier shelves (right)", x:1596,y:889,w:63,h:179, c:"#f8bbd0", vert:1,
+   faces:[{k:"",secs:1}], lv:5},
+ {id:"F10s2", nm:"Cashier shelves (S1 = patio side)", x:1371,y:1082,w:209,h:53, c:"#f8bbd0",
+   faces:[{k:"",secs:2}], lv:5, lvMap:{1:4}},
+ {id:"F10c", nm:"Cashier shelves corner", x:1581,y:1070,w:79,h:65, c:"#f8bbd0",
+   faces:[{k:"",secs:1}], lv:5},
+ {id:"F12", nm:"Slatwall column — 4 faces, hooks", x:1433,y:584,w:97,h:107, c:"#f8bbd0",
+   faces:[{k:"",secs:4}], lv:1},
+ {id:"F13", nm:"Island (new)", x:1442,y:720,w:79,h:137, c:"#f8bbd0", vert:1,
+   faces:[{k:"",secs:1}], lv:4},
+ {id:"F14", nm:"New place for stuff", x:1625,y:655,w:21,h:52, c:"#f8bbd0", vert:1,
+   faces:[{k:"",secs:1}], lv:1},
+ {id:"N6", nm:"Red Bull fridge", x:1599,y:715,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
+ {id:"N5", nm:"Red Bull fridge", x:1599,y:773,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
+ {id:"N4", nm:"Red Bull fridge", x:1599,y:831,w:61,h:52, c:"#f8bbd0", faces:[{k:"",secs:1}], lv:4},
+ {id:"G4", nm:"OFFERS island", x:1612,y:248,w:66,h:250, c:"#ffcc80", vert:1,
+   faces:[{k:"A",secs:2},{k:"B",secs:2}], lv:5},
+ {id:"BK1", nm:"BACK room 1", x:208,y:158,w:405,h:484, c:"#dce775", faces:[{k:"",secs:4}], lv:1},
+ {id:"BK2a", nm:"BACK zone A", x:0,y:293,w:208,h:351, c:"#dce775", faces:[{k:"",secs:3}], lv:1},
+ {id:"BK2b", nm:"BACK zone B", x:0,y:644,w:207,h:497, c:"#dce775", faces:[{k:"",secs:3}], lv:1},
+ {id:"PATIO", nm:"Patio (glass↔shutter)", x:1693,y:140,w:107,h:1001, c:"#ffe0b2", faces:[{k:"",secs:5}], lv:1},
+];
+/* the order you actually walk it in */
+const ROUTE=["W1","RR","G1","CF1","CF2","G2","G2x","ST1","G3","G4","N3","W2","S1","S2",
+  "F12","F13","F14","N6","N5","N4","F10a","F10b","F10s1","F10s2","F10c","PATIO","BK1","BK2a","BK2b"];
+const STRUCT=[
+ [0,140,"v",1001,10,"#e53935"],[1800,140,"v",1001,9,"#e53935"],[0,1141,"h",1800,10,"#e53935"],
+ [613,140,"h",1187,9,"#3d4a5c"],[208,158,"h",256,9,"#3d4a5c"],[0,293,"h",208,9,"#3d4a5c"],
+ [208,158,"v",983,7,"#3d4a5c"],[208,642,"h",405,7,"#3d4a5c"],[613,158,"v",484,7,"#3d4a5c"],
+ [0,644,"h",207,7,"#3d4a5c"],[464,140,"v",143,7,"#3d4a5c"],[613,140,"v",143,7,"#3d4a5c"],
+ [464,140,"h",149,7,"#3d4a5c"],[464,283,"h",149,5,"#3d4a5c"],
+];
+
+const fxById = id => FX.find(f => f.id === id);
+const esc = s => String(s == null ? "" : s).replace(/[<>&"]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+
+/* ============ storage ============ */
+/* Blobs, NOT base64. A minute of video is ~20 MB; base64 would make it 27 MB
+   and would have to be held as a string in memory to be written. */
+let db;
+function openDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("hassanLite", 1);
+    r.onupgradeneeded = e => {
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains("clips")){
+        const s = d.createObjectStore("clips", {keyPath:"id", autoIncrement:true});
+        s.createIndex("fx","fx"); s.createIndex("loc","loc");
+      }
+      if(!d.objectStoreNames.contains("cfg")) d.createObjectStore("cfg", {keyPath:"k"});
+    };
+    r.onsuccess = e => { db = e.target.result; res(); };
+    r.onerror = () => rej(r.error);
+  });
+}
+const tx = (st, mode) => db.transaction(st, mode).objectStore(st);
+const idbAll = st => new Promise(r => { const q = tx(st,"readonly").getAll(); q.onsuccess = () => r(q.result); });
+const idbPut = (st, v) => new Promise(r => { const q = tx(st,"readwrite").put(v); q.onsuccess = () => r(q.result); });
+const idbDel = (st, k) => new Promise(r => { const q = tx(st,"readwrite").delete(k); q.onsuccess = () => r(); });
+const idbGet = (st, k) => new Promise(r => { const q = tx(st,"readonly").get(k); q.onsuccess = () => r(q.result); });
+
+/* Shelf-count overrides, same idea as the scanner's ovSecs/ovLvls. What is in
+   the fixture table is a starting guess; what he confirms on the day wins. */
+let ovSecs = {}, ovLvls = {};
+const secsOf = (f, face) => ovSecs[f.id+"."+face] ?? (f.faces.find(x => x.k === face) || {secs:1}).secs;
+const lvlsOf = (f, face, sec) => ovLvls[f.id+"."+face+sec] ?? (f.lvMap && f.lvMap[face+sec]) ?? f.lv ?? 1;
+/* Byte-for-byte the scanner's own mkCode(). Copied rather than reinvented,
+   because the CAP case is a trap: a cap end has NO section segment, so it is
+   "G1.CAP.L7" and not "G1.CAP.1.L7". Getting that wrong makes every cap-end
+   clip land at a location nothing else in the pipeline can match. */
+function mkLoc(fx, face, sec, lvl){
+  const bits = [fx];
+  if(face === "CAP") bits.push("CAP");
+  else { if(face) bits.push(face); bits.push(sec); }
+  if(lvl) bits.push("L"+lvl);
+  return bits.join(".");
+}
+
+/* ============ state ============ */
+let clips = [];                 // metadata only; blobs stay in IDB
+let cur = null;                 // {fx, face, sec}
+let stream = null, facing = "environment";
+let rec = null, recChunks = [], recStart = 0, recTimer = null, recMarks = [], recKind = "video";
+let view = "map";
+
+const $ = id => document.getElementById(id);
+function toast(msg, warn){
+  const t = $("toast"); t.textContent = msg; t.className = "show" + (warn ? " warn" : "");
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = "", 2000);
+}
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+
+/* ============ nav ============ */
+function go(v){
+  view = v;
+  document.querySelectorAll(".view").forEach(x => x.classList.remove("on"));
+  $({map:"mapView", fx:"fxView", cap:"capView", export:"exportView"}[v]).classList.add("on");
+  $("backBtn").style.display = v === "map" ? "none" : "";
+  if(v !== "cap") stopCam();
+  if(v === "map"){ $("title").textContent = "Sweep"; $("crumb").textContent = ""; drawMap(); renderRoute(); }
+  if(v === "export") renderExport();
+  window.scrollTo(0,0);
+}
+function back(){
+  if(view === "cap"){ go("fx"); renderFixture(); }
+  else go("map");
+}
+window.addEventListener("popstate", () => back());
+
+/* ============ map ============ */
+function clipCount(pred){ return clips.filter(pred).length; }
+
+function drawMap(){
+  const svg = $("mapSvg");
+  let out = "";
+  for(const [x,y,axis,len,th,col] of STRUCT){
+    const w = axis === "h" ? len : th, h = axis === "h" ? th : len;
+    out += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${col}" opacity=".55"/>`;
+  }
+  for(const f of FX){
+    const n = clipCount(c => c.fx === f.id);
+    const fill = n ? "#2e7d5b" : f.c;
+    out += `<g class="fxr" onclick="openFixture('${f.id}')">`
+         + `<rect x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" rx="10" fill="${fill}" opacity="${n?1:.85}"/>`
+         + `<text x="${f.x + f.w/2}" y="${f.y + f.h/2 + 15}" text-anchor="middle">${f.id}</text>`
+         + (n ? `<text class="badge" x="${f.x + f.w - 12}" y="${f.y + 40}" text-anchor="end">${n}</text>` : "")
+         + `</g>`;
+  }
+  svg.innerHTML = out;
+}
+
+function renderRoute(){
+  const done = new Set(clips.map(c => c.fx));
+  $("routeList").innerHTML = `<div class="small muted" style="margin:6px 0">Walking order — ${done.size} of ${ROUTE.length} fixtures touched</div>`
+    + ROUTE.map(id => {
+      const f = fxById(id); if(!f) return "";
+      const n = clipCount(c => c.fx === id);
+      return `<div class="row" onclick="openFixture('${id}')">
+        <div class="grow"><b>${id}</b> <span class="small muted">${esc(f.nm)}</span></div>
+        <span class="tag ${n?"ok":""}">${n ? n + " clip" + (n>1?"s":"") : "—"}</span></div>`;
+    }).join("");
+}
+
+/* ============ fixture ============ */
+function openFixture(id){
+  cur = {fx:id, face:null, sec:null};
+  history.pushState({}, "");
+  go("fx"); renderFixture();
+}
+
+function renderFixture(){
+  const f = fxById(cur.fx);
+  $("title").textContent = f.id;
+  $("crumb").textContent = f.nm;
+  $("fxHead").innerHTML = `Confirm the shelves, then tap a section to record.
+    <br>Change a number only if the shelf is actually different — it is saved with the clips.`;
+
+  let out = "";
+  for(const face of f.faces){
+    const secs = secsOf(f, face.k);
+    out += `<div class="row" style="background:transparent;border:0;padding:4px 2px">
+       <div class="grow"><b>${face.k ? "Face " + face.k : "Sections"}</b></div>
+       <div class="stepper">
+         <button onclick="bumpSecs('${face.k}',-1)">−</button>
+         <span class="n">${secs}</span>
+         <button onclick="bumpSecs('${face.k}',1)">+</button>
+       </div></div>`;
+    for(let s = 1; s <= secs; s++){
+      const loc = mkLoc(f.id, face.k, s, 0);
+      const n = clipCount(c => c.sec === loc);
+      const lv = lvlsOf(f, face.k, s);
+      out += `<div class="row">
+        <div class="grow" onclick="openCapture('${face.k}',${s})">
+          <b>${esc(loc)}</b> <span class="tag ${n?"ok":""}">${n ? n + " clip" + (n>1?"s":"") : "empty"}</span>
+          <div class="small muted">${lv} ${lv>1?"shelves":"shelf"}</div>
+        </div>
+        <div class="stepper">
+          <button onclick="bumpLvls('${face.k}',${s},-1)">−</button>
+          <span class="n">${lv}</span>
+          <button onclick="bumpLvls('${face.k}',${s},1)">+</button>
+        </div>
+        <button class="pri" onclick="openCapture('${face.k}',${s})">Record</button>
+      </div>`;
+    }
+  }
+  $("secList").innerHTML = out;
+}
+
+async function bumpSecs(face, d){
+  const f = fxById(cur.fx);
+  const k = f.id + "." + face;
+  const now = secsOf(f, face);
+  ovSecs[k] = Math.max(1, Math.min(20, now + d));
+  await idbPut("cfg", {k:"ovSecs", v:ovSecs});
+  renderFixture();
+}
+async function bumpLvls(face, sec, d){
+  const f = fxById(cur.fx);
+  const k = f.id + "." + face + sec;
+  const now = lvlsOf(f, face, sec);
+  ovLvls[k] = Math.max(1, Math.min(20, now + d));
+  await idbPut("cfg", {k:"ovLvls", v:ovLvls});
+  renderFixture();
+}
+
+/* ============ capture ============ */
+function openCapture(face, sec){
+  cur = {fx:cur.fx, face, sec};
+  history.pushState({}, "");
+  go("cap");
+  const f = fxById(cur.fx);
+  const loc = mkLoc(f.id, face, sec, 0);
+  $("title").textContent = loc;
+  $("crumb").textContent = f.nm;
+  const lv = lvlsOf(f, face, sec);
+  $("shelfHint").textContent =
+    "Tap a shelf while recording to mark where you are. L1 is the bottom.";
+  let bar = "";
+  for(let i = lv; i >= 1; i--) bar += `<button id="sh${i}" onclick="mark(${i})">L${i}</button>`;
+  bar += `<button onclick="mark(0)">whole</button>`;
+  $("shelfBar").innerHTML = bar;
+  renderClips();
+  startCam();
+}
+
+async function startCam(){
+  stopCam();
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:facing}, width:{ideal:1920}, height:{ideal:1080}},
+      audio:true
+    });
+    $("cam").srcObject = stream;
+  }catch(e){
+    toast("No camera: " + e.message, 1);
+  }
+}
+function stopCam(){
+  if(rec && rec.state === "recording") return;   // never kill a live recording
+  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $("cam").srcObject = null;
+}
+function flipCam(){ facing = facing === "environment" ? "user" : "environment"; startCam(); }
+
+function pickMime(video){
+  const want = video
+    ? ["video/mp4","video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"]
+    : ["audio/mp4","audio/webm;codecs=opus","audio/webm"];
+  for(const m of want) if(MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
+const extFor = m => m.includes("mp4") ? (m.startsWith("audio") ? "m4a" : "mp4")
+                  : m.startsWith("audio") ? "weba" : "webm";
+
+function toggleRec(){ rec && rec.state === "recording" ? stopRec() : startRec("video"); }
+function toggleVoice(){ rec && rec.state === "recording" ? stopRec() : startRec("voice"); }
+
+function startRec(kind){
+  if(!stream){ toast("Camera not ready", 1); return; }
+  recKind = kind;
+  const video = kind === "video";
+  const mime = pickMime(video);
+  const src = video ? stream : new MediaStream(stream.getAudioTracks());
+  try{
+    rec = new MediaRecorder(src, mime ? {mimeType:mime, videoBitsPerSecond:2_500_000} : undefined);
+  }catch(e){ toast("Cannot record: " + e.message, 1); return; }
+  recChunks = []; recMarks = []; recStart = Date.now();
+  rec.ondataavailable = e => { if(e.data && e.data.size) recChunks.push(e.data); };
+  rec.onstop = saveRec;
+  rec.start(1000);                       // a chunk a second: a crash loses one second
+  $("recDot").classList.add("on");
+  $("recBtn").classList.add("rec");
+  $("recBtn").textContent = video ? "⏹ Stop" : "🎥 Record";
+  $("voiceBtn").textContent = video ? "🎤 Voice note" : "⏹ Stop";
+  recTimer = setInterval(() => {
+    const s = Math.floor((Date.now() - recStart) / 1000);
+    $("recTime").textContent = Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+  }, 500);
+  buzz(30);
+}
+
+function stopRec(){ if(rec && rec.state === "recording") rec.stop(); }
+
+async function saveRec(){
+  clearInterval(recTimer);
+  $("recDot").classList.remove("on");
+  $("recBtn").classList.remove("rec");
+  $("recBtn").textContent = "🎥 Record";
+  $("voiceBtn").textContent = "🎤 Voice note";
+  document.querySelectorAll("#shelfBar button").forEach(b => b.classList.remove("hit"));
+
+  const blob = new Blob(recChunks, {type:recChunks[0] ? recChunks[0].type : "video/webm"});
+  recChunks = [];
+  if(!blob.size){ toast("Nothing recorded", 1); return; }
+  const f = fxById(cur.fx);
+  await addClip({
+    kind: recKind === "voice" ? "voice" : "video",
+    blob,
+    ms: Date.now() - recStart,
+    marks: recMarks.slice()
+  });
+  buzz([20,40,20]);
+}
+
+/* A marker, not a separate file. Stopping and restarting per shelf is what
+   makes a sweep take two days; saying "I am on L3 now" costs one tap and
+   post-processing can cut on it. */
+function mark(level){
+  if(!rec || rec.state !== "recording"){
+    if(level) toast("Tap this while recording to mark shelf L" + level);
+    return;
+  }
+  recMarks.push({t: Date.now() - recStart, level});
+  document.querySelectorAll("#shelfBar button").forEach(b => b.classList.remove("hit"));
+  const b = $("sh" + level); if(b) b.classList.add("hit");
+  const s = Math.floor((Date.now() - recStart)/1000);
+  toast((level ? "L" + level : "whole section") + " at " + Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"));
+  buzz(15);
+}
+
+async function snap(){
+  const v = $("cam");
+  if(!v.videoWidth){ toast("Camera not ready", 1); return; }
+  const c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+  await addClip({kind:"photo", blob, ms:0, marks:[]});
+  buzz(25);
+}
+
+async function addClip(rowIn){
+  const f = fxById(cur.fx);
+  const row = Object.assign({
+    fx: f.id,
+    face: cur.face,
+    sec: mkLoc(f.id, cur.face, cur.sec, 0),
+    lvls: lvlsOf(f, cur.face, cur.sec),
+    ts: Date.now(),
+    type: rowIn.blob.type
+  }, rowIn);
+  try{
+    row.id = await idbPut("clips", row);
+  }catch(e){
+    toast("Could not save — storage full?", 1);
+    return;
+  }
+  clips.push(meta(row));
+  renderClips();
+  toast(row.kind + " saved to " + row.sec + (row.marks.length ? " · " + row.marks.length + " marks" : ""));
+}
+
+const meta = r => ({id:r.id, fx:r.fx, face:r.face, sec:r.sec, lvls:r.lvls, kind:r.kind,
+                    ms:r.ms, ts:r.ts, type:r.type, marks:r.marks, size:r.blob ? r.blob.size : r.size});
+
+const mb = n => (n/1048576).toFixed(n > 10485760 ? 0 : 1) + " MB";
+const dur = ms => ms ? Math.floor(ms/60000) + ":" + String(Math.floor(ms/1000)%60).padStart(2,"0") : "";
+
+function renderClips(){
+  const here = clips.filter(c => c.sec === mkLoc(cur.fx, cur.face, cur.sec, 0))
+                    .sort((a,b) => b.ts - a.ts);
+  $("clips").innerHTML = here.length ? here.map(c => `
+    <div class="row">
+      <div class="grow"><b>${c.kind === "photo" ? "📷" : c.kind === "voice" ? "🎤" : "🎥"} ${esc(c.kind)}</b>
+        <span class="small muted">${dur(c.ms)} ${mb(c.size)}${c.marks && c.marks.length ? " · " + c.marks.length + " marks" : ""}</span></div>
+      <button onclick="saveOne(${c.id})">⇩</button>
+      <button onclick="dropClip(${c.id})">🗑</button>
+    </div>`).join("")
+    : `<div class="small muted">Nothing here yet.</div>`;
+}
+
+async function dropClip(id){
+  await idbDel("clips", id);
+  clips = clips.filter(c => c.id !== id);
+  renderClips(); toast("Deleted");
+}
+
+/* ============ export ============ */
+function fileName(c){
+  const d = new Date(c.ts);
+  const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0")
+              + "-" + String(d.getHours()).padStart(2,"0") + String(d.getMinutes()).padStart(2,"0")
+              + String(d.getSeconds()).padStart(2,"0");
+  const ext = c.kind === "photo" ? "jpg" : extFor(c.type || "");
+  return `${c.sec}__${c.kind}__${stamp}.${ext}`;
+}
+function dl(name, blob){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+}
+async function saveOne(id){
+  const row = await idbGet("clips", id);
+  if(!row){ toast("Gone", 1); return; }
+  dl(fileName(row), row.blob);
+}
+function saveManifest(){
+  const data = {
+    v: 1, schema: "hassan-stock-lite/1", exported: new Date().toISOString(),
+    note: "Sweep capture. Locations are FIXTURE.FACE.SECTION, L1 = bottom shelf. "
+        + "marks[] are {t: ms into the clip, level: shelf} — no quantities, no barcodes; "
+        + "products are read out of the media afterwards.",
+    ovSecs, ovLvls,
+    clips: clips.map(c => Object.assign({file: fileName(c)}, c))
+  };
+  dl("hassan-lite-manifest-" + new Date().toISOString().slice(0,10) + ".json",
+     new Blob([JSON.stringify(data, null, 1)], {type:"application/json"}));
+}
+
+async function renderExport(){
+  let est = "";
+  try{
+    const e = await navigator.storage.estimate();
+    est = `${mb(e.usage)} used of about ${mb(e.quota)} the phone will allow.`;
+  }catch(e){}
+  const total = clips.reduce((a,c) => a + (c.size||0), 0);
+  $("storage").innerHTML = `<b>${clips.length} clip${clips.length===1?"":"s"}, ${mb(total)}.</b> ${esc(est)}
+    <br>Save the manifest AND the files. The manifest alone is only the index.`;
+
+  const byFx = {};
+  clips.forEach(c => (byFx[c.fx] = byFx[c.fx] || []).push(c));
+  $("exportList").innerHTML = Object.keys(byFx).sort().map(fx => {
+    const list = byFx[fx];
+    const size = list.reduce((a,c) => a + (c.size||0), 0);
+    return `<div class="row">
+      <div class="grow"><b>${fx}</b> <span class="small muted">${list.length} clip${list.length===1?"":"s"} · ${mb(size)}</span></div>
+      <button onclick="saveFixture('${fx}')">Save all</button></div>`;
+  }).join("") || `<div class="small muted">Nothing recorded yet.</div>`;
+}
+
+/* Saved one at a time with a gap. Android refuses a burst of downloads and
+   silently drops most of them; this asks once and then trickles. */
+async function saveFixture(fx){
+  const list = clips.filter(c => c.fx === fx);
+  toast("Saving " + list.length + " files — keep this screen open");
+  for(const c of list){
+    const row = await idbGet("clips", c.id);
+    if(row) dl(fileName(row), row.blob);
+    await new Promise(r => setTimeout(r, 900));
+  }
+  toast("Done — check Downloads");
+}
+
+/* ============ boot ============ */
+(async function boot(){
+  await openDB();
+  const s = await idbGet("cfg", "ovSecs"); if(s) ovSecs = s.v || {};
+  const l = await idbGet("cfg", "ovLvls"); if(l) ovLvls = l.v || {};
+  const rows = await idbAll("clips");
+  clips = rows.map(meta);
+  try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("lite-sw.js").catch(()=>{});
+  go("map");
+  window.addEventListener("beforeunload", e => {
+    if(rec && rec.state === "recording"){ e.preventDefault(); e.returnValue = ""; }
+  });
+})();
+</script>
+</body>
+</html>

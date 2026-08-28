@@ -1,0 +1,14 @@
+{
+  "name": "Hassan Stock — Lite sweep",
+  "short_name": "Sweep",
+  "start_url": "lite.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1216",
+  "theme_color": "#0f1216",
+  "icons": [
+    { "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIj48cmVjdCB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgcng9IjM2IiBmaWxsPSIjMGYxMjE2Ii8+PGNpcmNsZSBjeD0iOTYiIGN5PSI5NiIgcj0iMzQiIGZpbGw9IiMzN2UwYzQiLz48cmVjdCB4PSIzNCIgeT0iNTQiIHdpZHRoPSIxMjQiIGhlaWdodD0iODQiIHJ4PSIxNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMzdlMGM0IiBzdHJva2Utd2lkdGg9IjkiLz48L3N2Zz4=",
+      "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
