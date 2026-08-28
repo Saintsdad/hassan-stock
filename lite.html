@@ -63,6 +63,20 @@ button.ghost{background:transparent}
 #actions button{padding:16px 10px;font-size:16px}
 #recBtn.rec{background:var(--rec);color:#fff;border-color:transparent}
 #clips .row{padding:9px 12px}
+.thumb{width:78px;height:58px;border-radius:9px;object-fit:cover;background:#000;flex:none}
+.thumb.ph{display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);
+          border:1px solid var(--line)}
+#attachRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 0}
+#attachRow button{padding:15px 8px;font-size:15px}
+#sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.75);display:none;
+       align-items:flex-end;justify-content:center}
+#sheet.show{display:flex}
+#sheetIn{width:100%;max-height:88vh;overflow:auto;background:var(--panel);border-radius:18px 18px 0 0;
+         padding:14px 12px calc(env(safe-area-inset-bottom) + 14px)}
+#sheetIn h3{margin:2px 0 10px;font-size:17px}
+#player{width:100%;max-height:56vh;background:#000;border-radius:12px;display:block}
+.pickRow{display:flex;gap:10px;align-items:center;padding:8px;border-radius:12px;background:var(--panel2);
+         margin-bottom:8px}
 #bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--line);
      padding:8px 10px calc(env(safe-area-inset-bottom) + 8px);display:flex;gap:8px}
 #bar button{flex:1}
@@ -114,7 +128,16 @@ button.ghost{background:transparent}
     <button onclick="flipCam()">🔄 Flip</button>
   </div>
 
-  <div style="margin-top:14px" class="small muted">Recorded here</div>
+  <div id="attachRow">
+    <button class="pri" onclick="pickVideo()">📎 Attach video</button>
+    <button onclick="reuseSheet()">↔ Use one already attached</button>
+  </div>
+  <div class="small muted" style="margin-top:8px">
+    For video you filmed with the normal camera. The file stays where it is —
+    this only records that it belongs here.
+  </div>
+
+  <div style="margin-top:14px" class="small muted">In this section</div>
   <div id="clips" style="margin-top:6px"></div>
 </div>
 
@@ -126,6 +149,16 @@ button.ghost{background:transparent}
     <button onclick="saveManifest()">Save</button>
   </div>
   <div id="exportList"></div>
+</div>
+
+<input type="file" id="filePick" accept="video/*" multiple style="display:none">
+
+<div id="sheet" onclick="if(event.target===this)closeSheet()">
+  <div id="sheetIn">
+    <h3 id="sheetTitle"></h3>
+    <div id="sheetBody"></div>
+    <button style="width:100%;margin-top:12px" onclick="closeSheet()">Close</button>
+  </div>
 </div>
 
 <div id="bar">
@@ -286,6 +319,7 @@ function go(v){
   window.scrollTo(0,0);
 }
 function back(){
+  if($("sheet").classList.contains("show")){ closeSheet(); return; }
   if(view === "cap"){ go("fx"); renderFixture(); }
   else go("map");
 }
@@ -339,7 +373,22 @@ function renderFixture(){
   $("fxHead").innerHTML = `Confirm the shelves, then tap a section to record.
     <br>Change a number only if the shelf is actually different — it is saved with the clips.`;
 
-  let out = "";
+  // Anything filmed as one pass over the whole fixture, plus the button that
+  // attaches it — filming a zone in one go is the fast way round the shop.
+  const whole = clips.filter(c => c.sec === f.id).sort((a, b) => b.ts - a.ts);
+  let out = `<div class="row">
+      <div class="grow"><b>Whole of ${f.id}</b>
+        <div class="small muted">${whole.length ? whole.length + " video" + (whole.length > 1 ? "s" : "") + " covering the lot"
+                                                : "one video for the entire fixture"}</div></div>
+      <button class="pri" onclick="pickVideo(1)">📎 Attach</button>
+    </div>`
+    + whole.map(c => `<div class="row" style="margin-left:14px">
+        <div onclick="preview(${c.id})">${thumbTag(c)}</div>
+        <div class="grow" onclick="preview(${c.id})"><b>📎 ${esc(c.name || "video")}</b>
+          <div class="small muted">${dur(c.ms)} · ${mb(c.size)} · tap to play</div></div>
+        <button onclick="dropClip(${c.id})">🗑</button>
+      </div>`).join("");
+
   for(const face of f.faces){
     const secs = secsOf(f, face.k);
     out += `<div class="row" style="background:transparent;border:0;padding:4px 2px">
@@ -513,13 +562,18 @@ async function snap(){
   buzz(25);
 }
 
-async function addClip(rowIn){
-  const f = fxById(cur.fx);
+async function addClip(rowIn, target){
+  const t = target || {fx: cur.fx, face: cur.face, sec: cur.sec};
+  const f = fxById(t.fx);
+  // `whole` is a video that covers the entire fixture — filming a zone in one
+  // pass is the fast way round the shop, so it gets the fixture's own id as
+  // its location rather than being forced into one section it does not fit.
+  const where = t.whole ? f.id : mkLoc(f.id, t.face, t.sec, 0);
   const row = Object.assign({
     fx: f.id,
-    face: cur.face,
-    sec: mkLoc(f.id, cur.face, cur.sec, 0),
-    lvls: lvlsOf(f, cur.face, cur.sec),
+    face: t.whole ? null : t.face,
+    sec: where,
+    lvls: t.whole ? null : lvlsOf(f, t.face, t.sec),
     ts: Date.now(),
     type: rowIn.blob.type
   }, rowIn);
@@ -531,11 +585,195 @@ async function addClip(rowIn){
   }
   clips.push(meta(row));
   renderClips();
-  toast(row.kind + " saved to " + row.sec + (row.marks.length ? " · " + row.marks.length + " marks" : ""));
+  toast((row.attached ? "attached to " : row.kind + " saved to ") + row.sec
+        + (row.marks.length ? " · " + row.marks.length + " marks" : ""));
 }
 
 const meta = r => ({id:r.id, fx:r.fx, face:r.face, sec:r.sec, lvls:r.lvls, kind:r.kind,
-                    ms:r.ms, ts:r.ts, type:r.type, marks:r.marks, size:r.blob ? r.blob.size : r.size});
+                    ms:r.ms, ts:r.ts, type:r.type, marks:r.marks, size:r.blob ? r.blob.size : r.size,
+                    attached:!!r.attached, name:r.name, thumb:r.thumb});
+
+/* ============================================================
+   ATTACHING VIDEO YOU FILMED YOURSELF
+   ------------------------------------------------------------
+   The app does NOT take a copy. A File from the picker is stored
+   in IndexedDB as a REFERENCE to the file already on the phone,
+   so attaching a 900 MB walk-through costs a thumbnail — about
+   15 KB — instead of 900 MB. The phone would not survive the
+   alternative, and there is no reason to hold two copies of a
+   video that is already sitting in the gallery.
+
+   What that means, and it matters: the app is an INDEX of which
+   video covers which section, not a store. Move or delete the
+   file and the entry goes stale — it says so when that happens.
+   The manifest carries the ORIGINAL filename, which is what
+   post-processing matches on once the videos are off the phone.
+   ============================================================ */
+
+let pickTarget = null;   // where an attach is going: {fx, face, sec} or {fx, whole:1}
+
+function pickVideo(whole){
+  pickTarget = whole ? {fx: cur.fx, whole: 1} : {fx: cur.fx, face: cur.face, sec: cur.sec};
+  const inp = $("filePick");
+  inp.value = "";        // so picking the same file twice still fires change
+  inp.click();
+}
+
+$("filePick").addEventListener("change", async e => {
+  const files = [...e.target.files];
+  if(!files.length) return;
+  toast("Reading " + files.length + " video" + (files.length > 1 ? "s" : "") + "…");
+  for(const f of files) await attachOne(f);
+  if(view === "fx") renderFixture(); else renderClips();
+});
+
+/* First frame that is not black. Seeking to 0 on a phone video very often
+   gives a dark frame from before the camera settled, and a black thumbnail
+   is useless for telling one aisle from another. */
+function makeThumb(file){
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata"; v.muted = true; v.playsInline = true; v.src = url;
+    let done = false;
+    const finish = out => {
+      if(done) return; done = true;
+      URL.revokeObjectURL(url);
+      resolve(out);
+    };
+    v.onloadedmetadata = () => {
+      const d = isFinite(v.duration) ? v.duration : 0;
+      v.currentTime = Math.min(d > 3 ? 1.5 : d / 2, Math.max(d - 0.1, 0));
+    };
+    v.onseeked = () => {
+      try{
+        const w = 320, h = Math.round(w * (v.videoHeight || 9) / (v.videoWidth || 16));
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(v, 0, 0, w, h);
+        c.toBlob(b => finish({thumb: b, ms: Math.round((v.duration || 0) * 1000)}), "image/jpeg", 0.72);
+      }catch(err){ finish({thumb: null, ms: Math.round((v.duration || 0) * 1000)}); }
+    };
+    v.onerror = () => finish({thumb: null, ms: 0});
+    setTimeout(() => finish({thumb: null, ms: Math.round((v.duration || 0) * 1000)}), 12000);
+  });
+}
+
+/* Whether a browser COPIES an attached file into its own storage or merely
+   points at the one already on the phone is not something to take on trust —
+   it is the difference between a 15 KB thumbnail and a second copy of every
+   video you filmed. So it is measured, once, on the first attach, and if the
+   phone turns out to be copying you are told while there is still time to
+   stop rather than when the storage is full. */
+let copyCheck = null;   // null = not yet measured, true = phone copies, false = points
+
+async function usedBytes(){
+  try{ return (await navigator.storage.estimate()).usage || 0; }catch(e){ return 0; }
+}
+
+async function attachOne(file){
+  const {thumb, ms} = await makeThumb(file);
+  const before = copyCheck === null ? await usedBytes() : 0;
+
+  await addClip({
+    kind: "attached", blob: file, attached: true, name: file.name,
+    thumb, ms, marks: []
+  }, pickTarget);
+
+  if(copyCheck === null && file.size > 2_000_000){
+    const grew = (await usedBytes()) - before;
+    copyCheck = grew > file.size * 0.5;
+    await idbPut("cfg", {k:"copyCheck", v:copyCheck});
+    if(copyCheck){
+      toast("Careful — this phone is COPYING the videos, " + mb(grew) + " so far", 1);
+    }
+  }
+}
+
+/* One video usually covers a whole zone, so the same file gets attached to
+   several sections. Re-picking it from the gallery each time is the slow
+   part; this lists what is already attached and links it here in one tap. */
+async function reuseSheet(){
+  const rows = await idbAll("clips");
+  const seen = new Map();
+  for(const r of rows.filter(r => r.attached)){
+    if(!seen.has(r.name)) seen.set(r.name, r);
+  }
+  const list = [...seen.values()].sort((a, b) => b.ts - a.ts);
+  if(!list.length){
+    openSheet("Nothing attached yet", `<div class="small muted">Attach a video first and it will show up here.</div>`);
+    return;
+  }
+  openSheet("Use one already attached", list.map(r => `
+    <div class="pickRow" onclick="linkHere(${r.id})">
+      ${thumbTag(r)}
+      <div class="grow"><b>${esc(r.name)}</b>
+        <div class="small muted">${dur(r.ms)} · ${mb(r.blob.size)} · first put at ${esc(r.sec)}</div></div>
+      <button class="pri">Use</button>
+    </div>`).join(""));
+}
+
+async function linkHere(id){
+  const row = await idbGet("clips", id);
+  if(!row){ toast("Gone", 1); return; }
+  const target = {fx: cur.fx, face: cur.face, sec: cur.sec};
+  const already = clips.find(c => c.attached && c.name === row.name && c.sec === mkLoc(cur.fx, cur.face, cur.sec, 0));
+  if(already){ toast("Already on this section"); closeSheet(); return; }
+  await addClip({
+    kind: "attached", blob: row.blob, attached: true, name: row.name,
+    thumb: row.thumb, ms: row.ms, marks: []
+  }, target);
+  closeSheet();
+  renderClips();
+}
+
+/* ---- preview ---- */
+const urlCache = new Map();
+function objUrl(id, blob){
+  if(!urlCache.has(id)) urlCache.set(id, URL.createObjectURL(blob));
+  return urlCache.get(id);
+}
+function thumbTag(c){
+  return c.thumb
+    ? `<img class="thumb" src="${objUrl("t" + c.id, c.thumb)}" alt="">`
+    : `<div class="thumb ph">${c.kind === "photo" ? "🖼" : "🎥"}</div>`;
+}
+
+async function preview(id){
+  const row = await idbGet("clips", id);
+  if(!row){ toast("Gone", 1); return; }
+  let url;
+  try{
+    url = objUrl("v" + row.id, row.blob);
+  }catch(e){
+    openSheet("Cannot open it", `<div class="small muted">The file has moved or been deleted since it was attached.</div>`);
+    return;
+  }
+  const tag = row.kind === "photo"
+    ? `<img id="player" src="${url}">`
+    : `<video id="player" src="${url}" controls playsinline autoplay></video>`;
+  openSheet(row.name || row.sec, tag + `
+    <div class="small muted" style="margin-top:8px">
+      ${esc(row.sec)} · ${dur(row.ms)} · ${mb(row.blob.size)}
+    </div>
+    <div class="small muted" id="playErr" style="color:var(--warn);margin-top:6px;display:none">
+      This file cannot be read any more — it was moved or deleted from the phone.
+    </div>`);
+  const el = $("player");
+  if(el) el.onerror = () => { $("playErr").style.display = "block"; };
+}
+
+function openSheet(title, html){
+  $("sheetTitle").textContent = title;
+  $("sheetBody").innerHTML = html;
+  $("sheet").classList.add("show");
+}
+function closeSheet(){
+  const el = $("player");
+  if(el && el.pause) el.pause();
+  $("sheet").classList.remove("show");
+  $("sheetBody").innerHTML = "";
+}
 
 const mb = n => (n/1048576).toFixed(n > 10485760 ? 0 : 1) + " MB";
 const dur = ms => ms ? Math.floor(ms/60000) + ":" + String(Math.floor(ms/1000)%60).padStart(2,"0") : "";
@@ -545,9 +783,14 @@ function renderClips(){
                     .sort((a,b) => b.ts - a.ts);
   $("clips").innerHTML = here.length ? here.map(c => `
     <div class="row">
-      <div class="grow"><b>${c.kind === "photo" ? "📷" : c.kind === "voice" ? "🎤" : "🎥"} ${esc(c.kind)}</b>
-        <span class="small muted">${dur(c.ms)} ${mb(c.size)}${c.marks && c.marks.length ? " · " + c.marks.length + " marks" : ""}</span></div>
-      <button onclick="saveOne(${c.id})">⇩</button>
+      <div onclick="preview(${c.id})">${thumbTag(c)}</div>
+      <div class="grow" onclick="preview(${c.id})">
+        <b>${c.attached ? "📎 " + esc(c.name || "video")
+                        : (c.kind === "photo" ? "📷 photo" : c.kind === "voice" ? "🎤 voice" : "🎥 video")}</b>
+        <div class="small muted">${dur(c.ms)} · ${mb(c.size)}${c.marks && c.marks.length ? " · " + c.marks.length + " marks" : ""}
+          ${c.attached ? " · tap to play" : ""}</div>
+      </div>
+      ${c.attached ? "" : `<button onclick="saveOne(${c.id})">⇩</button>`}
       <button onclick="dropClip(${c.id})">🗑</button>
     </div>`).join("")
     : `<div class="small muted">Nothing here yet.</div>`;
@@ -556,11 +799,17 @@ function renderClips(){
 async function dropClip(id){
   await idbDel("clips", id);
   clips = clips.filter(c => c.id !== id);
-  renderClips(); toast("Deleted");
+  urlCache.delete("t" + id); urlCache.delete("v" + id);
+  if(view === "fx") renderFixture(); else renderClips();
+  toast("Removed — the video itself is untouched");
 }
 
 /* ============ export ============ */
 function fileName(c){
+  // An attached video keeps the name it already has on the phone. That name is
+  // the only thing that ties this index to the actual file once the videos are
+  // copied off, so inventing a new one here would break the join.
+  if(c.attached && c.name) return c.name;
   const d = new Date(c.ts);
   const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0")
               + "-" + String(d.getHours()).padStart(2,"0") + String(d.getMinutes()).padStart(2,"0")
@@ -576,14 +825,20 @@ function dl(name, blob){
 async function saveOne(id){
   const row = await idbGet("clips", id);
   if(!row){ toast("Gone", 1); return; }
+  if(row.attached){ toast("That one is already on your phone — " + row.name); return; }
   dl(fileName(row), row.blob);
 }
 function saveManifest(){
   const data = {
     v: 1, schema: "hassan-stock-lite/1", exported: new Date().toISOString(),
-    note: "Sweep capture. Locations are FIXTURE.FACE.SECTION, L1 = bottom shelf. "
-        + "marks[] are {t: ms into the clip, level: shelf} — no quantities, no barcodes; "
-        + "products are read out of the media afterwards.",
+    note: "Sweep capture. Locations are FIXTURE.FACE.SECTION, L1 = bottom shelf; a "
+        + "location that is just a fixture id means one video covers the whole fixture. "
+        + "marks[] are {t: ms into the clip, level: shelf}. No quantities, no barcodes; "
+        + "products are read out of the media afterwards. "
+        + "attached:true means `file` is a video filmed on the phone's own camera and "
+        + "NOT held by this app — match it by that filename against the videos copied "
+        + "off the phone. Everything else was recorded in the app and can be saved from "
+        + "the export screen.",
     ovSecs, ovLvls,
     clips: clips.map(c => Object.assign({file: fileName(c)}, c))
   };
@@ -597,25 +852,40 @@ async function renderExport(){
     const e = await navigator.storage.estimate();
     est = `${mb(e.usage)} used of about ${mb(e.quota)} the phone will allow.`;
   }catch(e){}
-  const total = clips.reduce((a,c) => a + (c.size||0), 0);
-  $("storage").innerHTML = `<b>${clips.length} clip${clips.length===1?"":"s"}, ${mb(total)}.</b> ${esc(est)}
-    <br>Save the manifest AND the files. The manifest alone is only the index.`;
+  const att = clips.filter(c => c.attached), own = clips.filter(c => !c.attached);
+  const total = own.reduce((a,c) => a + (c.size||0), 0);
+  const attTotal = att.reduce((a,c) => a + (c.size||0), 0);
+  const copyWarn = copyCheck === true
+    ? `<br><b style="color:var(--warn)">This phone is copying attached videos into the app rather
+         than pointing at them, so the space above is being spent twice. Tell me and I will
+         switch it to storing only the thumbnail and the filename.</b>`
+    : copyCheck === false && att.length
+      ? `<br><span style="color:var(--acc)">Measured: this phone points at the videos rather than
+           copying them, so they cost almost nothing here.</span>`
+      : "";
+  $("storage").innerHTML =
+    `<b>${own.length} recorded in the app${own.length ? ", " + mb(total) : ""}.</b> ${esc(est)}`
+    + copyWarn
+    + (att.length ? `<br><b>${att.length} attached video${att.length===1?"":"s"}, ${mb(attTotal)}</b> —
+         those stay in your gallery, this app only points at them. Copy them off the
+         phone yourself and match them up by filename.` : "")
+    + `<br>Save the manifest either way: it is what says which video covers which section.`;
 
   const byFx = {};
-  clips.forEach(c => (byFx[c.fx] = byFx[c.fx] || []).push(c));
+  own.forEach(c => (byFx[c.fx] = byFx[c.fx] || []).push(c));
   $("exportList").innerHTML = Object.keys(byFx).sort().map(fx => {
     const list = byFx[fx];
     const size = list.reduce((a,c) => a + (c.size||0), 0);
     return `<div class="row">
       <div class="grow"><b>${fx}</b> <span class="small muted">${list.length} clip${list.length===1?"":"s"} · ${mb(size)}</span></div>
       <button onclick="saveFixture('${fx}')">Save all</button></div>`;
-  }).join("") || `<div class="small muted">Nothing recorded yet.</div>`;
+  }).join("") || `<div class="small muted">Nothing was recorded in the app${att.length ? " — attached videos are in your gallery" : ""}.</div>`;
 }
 
 /* Saved one at a time with a gap. Android refuses a burst of downloads and
    silently drops most of them; this asks once and then trickles. */
 async function saveFixture(fx){
-  const list = clips.filter(c => c.fx === fx);
+  const list = clips.filter(c => c.fx === fx && !c.attached);
   toast("Saving " + list.length + " files — keep this screen open");
   for(const c of list){
     const row = await idbGet("clips", c.id);
@@ -628,6 +898,7 @@ async function saveFixture(fx){
 /* ============ boot ============ */
 (async function boot(){
   await openDB();
+  const cc = await idbGet("cfg", "copyCheck"); if(cc) copyCheck = cc.v;
   const s = await idbGet("cfg", "ovSecs"); if(s) ovSecs = s.v || {};
   const l = await idbGet("cfg", "ovLvls"); if(l) ovLvls = l.v || {};
   const rows = await idbAll("clips");
